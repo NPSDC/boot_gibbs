@@ -1,0 +1,183 @@
+---
+title: "EDA"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Loading data
+100 gibbs samples and bootstrap
+```{r warning=FALSE, message=FALSE}
+library(tximport)
+source("helper_func.R")
+load("out_1/sim_counts_matrix.rda")
+dir <- "out"
+gsFiles <- file.path(dir, c("ERR188297_GS", "sample_01_GS"), "quant.sf")
+txiInfRepGS <- tximport(gsFiles, type = "salmon", txOut = TRUE)
+
+bootFiles <- file.path(dir, c("ERR188297_B", "sample_01_B"), "quant.sf")
+txiInfRepBoot <- tximport(bootFiles, type = "salmon", txOut = TRUE)
+
+#fileDf <- vroom::vroom("fastq/sample_01_1.fastq.gz", delim = "\n", col_names = F)
+#simCounts <- countReads(fileDf)
+
+txiInfRepGS <- computeConfInt(txiInfRepGS)
+txiInfRepBoot <- computeConfInt(txiInfRepBoot)
+```
+
+### Simulated Data
+
+#### Obtaining the transcripts with zero counts
+```{r}
+zeroBInds <- which(txiInfRepBoot$counts[,2] == 0)
+zeroGSInds <- which(txiInfRepGS$counts[,2] == 0)
+print(length(zeroGSInds))
+print(length(zeroBInds))
+print(length(setdiff(zeroGSInds, zeroBInds)))
+print(length(setdiff(zeroBInds, zeroGSInds)))
+```
+
+So mostly same transcripts have zero counts at two independent EM runs
+
+#### Obtaining transcripts that have zero means over the bootstrap runs
+```{r}
+zeroMeanGS <- which(txiInfRepGS$conf[[2]][,3] <= 3)
+zeroMeanB <- which(txiInfRepBoot$conf[[2]][,3] <= 3)
+
+print(length(zeroMeanGS))
+print(length(zeroMeanB))
+print(length(setdiff(zeroBInds, zeroMeanB)))
+print(length(setdiff(zeroGSInds, zeroMeanGS)))
+print(length(intersect(zeroMeanB, zeroMeanGS)))
+
+plotDfZeros <- createPlotDf(list("Boot" = txiInfRepBoot$conf[[2]], "GS" = txiInfRepGS$conf[[2]]), list("Boot" = setdiff(zeroBInds, zeroMeanB), "GS" = setdiff(zeroGSInds, zeroMeanGS)))
+plotHist(plotDfZeros, "Width")
+plotHist(plotDfZeros, "Mean")
+plotHist(plotDfZeros, "Var")
+```
+
+A lot of transcripts that had zero counts under Gibbs sampling have non zero means compared to bootstrap
+
+#### Only observing the transcripts having non zero counts
+```{r}
+nZeroInds <- setdiff(1:nrow(txiInfRepBoot$conf[[2]]), union(zeroBInds, zeroGSInds))
+print(length(nZeroInds))
+plotDfNonZeros <- createPlotDf(list("Boot" = txiInfRepBoot$conf[[2]], "GS" = txiInfRepGS$conf[[2]]), 
+                               list("Boot" = nZeroInds, "GS" = nZeroInds))
+plotViol(plotDfNonZeros, "Width")
+plotViol(plotDfNonZeros, "Mean")
+plotViol(plotDfNonZeros, "Var")
+```
+
+#### Transcripts with 95% CI of one is less than 5% CI of other (GS Dominates)
+```{r}
+GSLargeInds <- which(txiInfRepBoot$conf[[2]][nZeroInds,2] < txiInfRepGS$conf[[2]][nZeroInds,1])
+bootLargeInds <- which(txiInfRepGS$conf[[2]][nZeroInds,2] < txiInfRepBoot$conf[[2]][nZeroInds,1])
+
+print(length(GSLargeInds))
+print(length(bootLargeInds))
+
+pGSLargeDf <- createPlotDf(list("Boot" = txiInfRepBoot$conf[[2]], "GS" = txiInfRepGS$conf[[2]]), 
+                               list("Boot" = nZeroInds[GSLargeInds], "GS" = nZeroInds[GSLargeInds]))
+plotHist(pGSLargeDf, "Width")
+plotHist(pGSLargeDf, "Mean")
+plotHist(pGSLargeDf, "HighC")
+plotHist(pGSLargeDf, "LowC")
+```
+
+#### Transcripts with 95% CI of one is less than 5% CI of other (Bootstrap Dominates)
+```{r}
+pBootLargeDf <- createPlotDf(list("Boot" = txiInfRepBoot$conf[[2]], "GS" = txiInfRepGS$conf[[2]]), 
+                               list("Boot" = nZeroInds[bootLargeInds], "GS" = nZeroInds[bootLargeInds]))
+plotViol(pBootLargeDf, "Width")
+plotViol(pBootLargeDf, "Mean")
+plotViol(pBootLargeDf, "HighC")
+plotViol(pBootLargeDf, "LowC")
+```
+
+#### Computing the difference between magnitude of difference b/w the two
+```{r}
+diffs <- txiInfRepGS$conf[[2]][nZeroInds,"Width"] - txiInfRepBoot$conf[[2]][nZeroInds,"Width"]
+print(sum(diffs < 0))
+print(sum(diffs > 0))
+hist(diffs)
+
+print(sum(abs(diffs) < 20))
+print(sum(diffs < -20))
+print(sum(diffs > 20))
+```
+
+Of the total 46K transcripts that have non zero counts, around 35K have a difference of less than 20
+
+### Real Data
+
+#### Obtaining the transcripts with zero counts
+```{r}
+i=1
+zeroBInds <- which(txiInfRepBoot$counts[,i] == 0)
+zeroGSInds <- which(txiInfRepGS$counts[,i] == 0)
+print(length(zeroGSInds))
+print(length(zeroBInds))
+print(length(setdiff(zeroGSInds, zeroBInds)))
+print(length(setdiff(zeroBInds, zeroGSInds)))
+```
+
+#### Obtaining transcripts that have zero means over the bootstrap runs
+```{r}
+zeroMeanGS <- which(txiInfRepGS$conf[[i]][,3] <= 3)
+zeroMeanB <- which(txiInfRepBoot$conf[[i]][,3] <= 3)
+
+print(length(zeroMeanGS))
+print(length(zeroMeanB))
+print(length(setdiff(zeroBInds, zeroMeanB)))
+print(length(setdiff(zeroGSInds, zeroMeanGS)))
+print(length(intersect(zeroMeanB, zeroMeanGS)))
+
+plotDfZeros <- createPlotDf(list("Boot" = txiInfRepBoot$conf[[i]], "GS" = txiInfRepGS$conf[[i]]), list("Boot" = setdiff(zeroBInds, zeroMeanB), "GS" = setdiff(zeroGSInds, zeroMeanGS)))
+plotHist(plotDfZeros, "Width")
+plotHist(plotDfZeros, "Mean")
+plotHist(plotDfZeros, "Var")
+```
+
+#### Only observing the transcripts having non zero counts
+```{r}
+nZeroInds <- setdiff(1:nrow(txiInfRepBoot$conf[[i]]), union(zeroBInds, zeroGSInds))
+print(length(nZeroInds))
+plotDfNonZeros <- createPlotDf(list("Boot" = txiInfRepBoot$conf[[i]], "GS" = txiInfRepGS$conf[[i]]), 
+                               list("Boot" = nZeroInds, "GS" = nZeroInds))
+plotViol(plotDfNonZeros, "Width")
+plotViol(plotDfNonZeros, "Mean")
+plotViol(plotDfNonZeros, "Var")
+```
+
+#### Transcripts with 95% CI of one is less than 5% CI of other (GS Dominates)
+```{r}
+GSLargeInds <- which(txiInfRepBoot$conf[[i]][nZeroInds,2] < txiInfRepGS$conf[[i]][nZeroInds,1])
+bootLargeInds <- which(txiInfRepGS$conf[[i]][nZeroInds,2] < txiInfRepBoot$conf[[i]][nZeroInds,1])
+
+print(length(GSLargeInds))
+print(length(bootLargeInds))
+
+pGSLargeDf <- createPlotDf(list("Boot" = txiInfRepBoot$conf[[i]], "GS" = txiInfRepGS$conf[[i]]), 
+                               list("Boot" = nZeroInds[GSLargeInds], "GS" = nZeroInds[GSLargeInds]))
+plotHist(pGSLargeDf, "Width")
+plotHist(pGSLargeDf, "Mean")
+plotHist(pGSLargeDf, "HighC")
+plotHist(pGSLargeDf, "LowC")
+```
+
+#### Computing the difference between magnitude of difference b/w the two
+```{r}
+diffs <- txiInfRepGS$conf[[i]][nZeroInds,"Width"] - txiInfRepBoot$conf[[i]][nZeroInds,"Width"]
+print(sum(diffs < 0))
+print(sum(diffs > 0))
+hist(diffs)
+
+print(sum(abs(diffs) < 20))
+print(sum(diffs < -20))
+print(sum(diffs > 20))
+```
