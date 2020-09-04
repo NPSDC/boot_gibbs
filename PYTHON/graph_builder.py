@@ -1,16 +1,5 @@
 import pandas as pd
-import os
-import numpy as np
-import readBootstraps
-import networkx as nx
-import itertools
-import logging
-import logging.handlers
-import argparse
-import json
-
-
-import pandas as pd
+import gzip
 import os
 import numpy as np
 import readBootstraps
@@ -50,7 +39,7 @@ def read_eqfle(base,
 
     exp_dir = os.path.sep.join([base,exp])
     quant_file = os.path.sep.join([exp_dir,'quant.sf'])
-    eq_file = os.path.sep.join([exp_dir,'aux_info','eq_classes.txt'])
+    eq_file = os.path.sep.join([exp_dir,'aux_info','eq_classes.txt.gz'])
 
     logging.info('quant file: {}, eq file {}'.format(quant_file, eq_file))
 
@@ -67,34 +56,29 @@ def read_eqfle(base,
     tnames = []
     tnamemap = {}
 
-    with open(eq_file) as ifile:
-        numTran = int(ifile.readline().rstrip())
-        numEq = int(ifile.readline().rstrip())
+    with gzip.open(eq_file) as ifile:
+        numTran = int(ifile.readline().decode('utf-8').rstrip())
+        numEq = int(ifile.readline().decode('utf-8').rstrip())
         logging.info('eq file: {}; # tran = {}; # eq = {}'.format(eq_file, numTran, numEq))
-        firstSamp = True
+        firstSamp = True ### Meaning
 
         if firstSamp:
             for i in range(numTran):
-                tnames.append(ifile.readline().rstrip())
+                tnames.append(ifile.readline().decode('utf-8').rstrip())
                 tnamemap[tnames[-1]] = len(tnames) - 1
-            diagCounts = np.zeros(len(tnames))
-            sumCounts = np.zeros(len(tnames))
-            ambigCounts = np.zeros(len(tnames))
         else:
             for i in range(numTran):
-                ifile.readline()
+                ifile.readline().decode('utf-8').rstrip()
 
-        epsilon =  np.finfo(float).eps
 
         single_nodes = set()
-        autocorr_map = {}
+        autocorr_map = {} ##Why
         count_sum_map = {}
-        sum_weight = 0
         seen_edge = set()
 
         for i in range(numEq):
             print(i,end='\r')
-            toks = ifile.readline().rstrip().split('\t')
+            toks = ifile.readline().decode('utf-8').rstrip().split('\t')
             nt = int(toks[0])
 
 
@@ -102,6 +86,7 @@ def read_eqfle(base,
             tids = tuple(list(map(int,(toks[1:nt+1]))))
             # convertedtids = [transcriptNameMap[tnames[tid]] for tid in tids]
             weights = tuple(list(map(float,toks[nt+1:-1])))
+            #print(weights)
             count = int(toks[-1])
 
             if tids + weights in eqClasses:
@@ -121,7 +106,7 @@ def read_eqfle(base,
                     itertools.combinations(np.arange(len(tids)).astype(int),2)
                 )
                 for combo in combos:
-                    t1, t2 = tids[combo[0]],tids[combo[1]]
+                    t1, t2 = sorted([tids[combo[0]],tids[combo[1]]])
                     if (not((t1 in single_nodes) or
                         (t2 in single_nodes)) or
                         count_isolated
@@ -133,7 +118,7 @@ def read_eqfle(base,
 
                         if w != 0:
                             w = np.log(w)
-                        edgeToEqClass[(t2,t2)].append(i)
+                        edgeToEqClass[(t1,t2)].append(i) ##Should be t1,t2
                         if not (t1,t2) in autocorr_map:
                             autocorr_map[(t1,t2)] = pearsonr(
                                 bootstrap_df.loc[tnames[t1]].values,
@@ -146,13 +131,13 @@ def read_eqfle(base,
 
                         if not (t1,t2) in seen_edge:
                             # print(combo)
-                            G.add_edge(t1, t2, weight= w, count = count)
+                            G.add_edge(t1, t2, weight= w, count = count, eqClass = [i])
                             G[t1][t2]['corr'] = autocorr_map[(t1,t2)]
                             G[t1][t2]['weight'] = count*w
                         else:
-                            G[t1][t2]['weight'] +=  count*w
-                            G[t1][t2]['count'] += count
-
+                            G[t1][t2]['weight'] +=  count*w ## should be weight, further eq classes should be in the edge
+                            G[t1][t2]['count'] += count ## should not be count since count is of the equivalence class
+                            G[t1][t2]['count'].append(i)
                         normWeight += count*w
                 eqClassNormWeights[i] = normWeight
 
@@ -160,7 +145,7 @@ def read_eqfle(base,
     if build_graph:
         for (u,v) in G.edges():
             for i in edgeToEqClass[(u,v)]:
-                G[u][v]['weight'] = G[u][v]['weight'] / eqClassNormWeight[i]
+                G[u][v]['weight'] = G[u][v]['weight'] / eqClassNormWeights[i]
     return tnames,tnamemap,eqClasses,G
 
 
