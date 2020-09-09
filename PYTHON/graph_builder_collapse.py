@@ -81,8 +81,8 @@ def read_eqfile(base, exp, nEq = None):
                 rep.append(tids)
                 
             if len(tids) == 1:
-                if G.has_node(tids[0]):
-                    G.remove_node(tids[0])
+                # if G.has_node(tids[0]):
+                #     G.remove_node(tids[0])
                 single_nodes.add(tids[0])
                 t_not.add(tids[0])
                 continue
