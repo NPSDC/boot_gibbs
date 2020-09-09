@@ -130,17 +130,17 @@ def read_eqfle(base,
                             )
 
                         if not (t1,t2) in seen_edge:
-                            # print(combo)
+                            seen_edge.add((t1, t2))
                             G.add_edge(t1, t2, weight= w, count = count, eqClass = [i])
                             G[t1][t2]['corr'] = autocorr_map[(t1,t2)]
                             G[t1][t2]['weight'] = count*w
                         else:
                             G[t1][t2]['weight'] +=  count*w ## should be weight, further eq classes should be in the edge
                             G[t1][t2]['count'] += count ## should not be count since count is of the equivalence class
-                            G[t1][t2]['count'].append(i)
+                            G[t1][t2]['eqClass'].append(i)
                         normWeight += count*w
                 eqClassNormWeights[i] = normWeight
-
+                print(eqClassNormWeights[i])
     # normalize
     if build_graph:
         for (u,v) in G.edges():
