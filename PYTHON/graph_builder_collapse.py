@@ -143,7 +143,18 @@ def extract_transcripts(tnamemap, cliques, cl_inds):
     cliques = [cliques[i] for i in cl_inds]
     def get_trans(cl):
         return [tnamemap[i] for i in cl]
-    return(map(get_trans, cliques))
+    return(list(map(get_trans, cliques)))
+
+def write_cliques(clique_trans, dir):
+    f_write = os.path.sep.join([dir, "thought_exp.txt"])
+    with open(f_write, "w") as f:
+        for i in range(len(clique_trans)):
+            newline = "\n"
+            if(i == len(clique_trans)-1):
+                newline = ""
+            line = str(i+1) + "\t" + ",".join(clique_trans[i]) + newline
+            f.write(line)
+        
 
 def main():
     parser = argparse.ArgumentParser(
@@ -155,12 +166,15 @@ def main():
         '-e', '--exp', required=True, type=str, help='file that contains experiment names')
     parser.add_argument(
         '-o', '--outdir', required=True, type=str, help='directory to store the networkx graphs')
+    parser.add_argument(
+        '-t', '--thought', required=False, default=True, action="store_true", help='if the thought experiment has to be performed')
     
     args = parser.parse_args()
 
     base = args.base
     expfile = args.exp
     outdir = args.outdir
+    thought = args.thought
     
     logging.basicConfig(level=logging.INFO)
     logging.info('Reading the experiments ')
@@ -177,14 +191,21 @@ def main():
         tnames,tnamemap,eqclasses,G,rep,single_nodes,t_not,eqclass_name = read_eqfile(
             base,
             exp)
-        cliques, clique_inds, c_others = extract_req_cliques(G, t_not)
-
-        
         ds_dict = {"tnames":tnames, "tnamemap":tnamemap, "eqclasses":eqclasses, "rep":rep, "single_nodes":single_nodes, 
-        "t_not":t_not, "eqclass_name":eqclass_name, "cliques":cliques, "clique_inds":clique_inds,"c_others":c_others}
+        "t_not":t_not, "eqclass_name":eqclass_name}
 
         graph_file = os.path.sep.join([outdir, exp+'.G.pk'])
         others = os.path.sep.join([outdir, exp + '_oth.pi'])
+
+        if thought:
+            cliques, clique_inds, c_others = extract_req_cliques(G, t_not)
+            ds_dict["cliques"]=cliques
+            ds_dict["clique_inds"]=clique_inds
+            ds_dict["c_others"]=c_others
+            
+            req_trans = list(extract_transcripts(tnamemap, cliques, clique_inds))
+            write_cliques(req_trans, outdir)
+
         pi.dump(ds_dict, open(others, "wb"))
         nx.write_gpickle(G, graph_file)
 
