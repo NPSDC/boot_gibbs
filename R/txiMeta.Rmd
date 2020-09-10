@@ -1,0 +1,85 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Loading and setting up data
+```{r message=F, warning=F}
+library(tximeta)
+dir <- "../../real_data/out"
+load("../../real_data/out_1/sim_counts_matrix.rda")
+source("helper_func.R")
+
+files <- file.path(dir, c("sample_01_B_100", "sample_01_GS_100"), "quant.sf")
+coldata <- data.frame(files, names = c("sample_01_B_100", "sample_01_GS_100"), infType = c("Boot", "GS"), stringsAsFactors = F)
+se <- tximeta(coldata)
+
+### Extracting common transcripts
+mInds <- match(rownames(counts_matrix), rownames(se))
+seNonZero <- se[mInds,]
+
+### Loading the transcripts from the experiment
+eqTrans <- read.table("../../real_data/networkx/thought_exp.txt", sep = "\t", header = T)
+```
+
+### Normalization by scaling factor
+```{r message=FALSE, warning=F}
+library(DESeq2)
+reqMat <- cbind(assays(seNonZero)[["counts"]][,1], counts_matrix[,1])
+colnames(reqMat) <- c("Estimated", "True")
+sizeFac <- estimateSizeFactorsForMatrix(reqMat)
+
+print(sizeFac)
+
+asNames <- assayNames(seNonZero)
+asNames <- asNames[grepl("inf*",asNames) | grepl("counts",asNames)]
+
+for(assay in asNames)
+    assays(seNonZero)[[assay]] <- assays(seNonZero)[[assay]]/sizeFac[1]
+
+seNonZero <- computeConfInt(seNonZero)
+se <- computeConfInt(se)
+trueCounts <- counts_matrix[,1]/sizeFac[2]
+```
+
+### Actual Coverage
+```{r}
+coverage <- computeCoverage(trueCounts, seNonZero, list(seq(nrow(counts_matrix))))
+print(coverage)
+```
+
+### Looking at the transcripts in the experiment
+A total of 83 equivalence classes
+Most classes contain only 2 transcripts
+```{r}
+print(nrow(eqTrans))
+trans <- strsplit(eqTrans[,1], split = ",", fixed = T)
+lTrans <- sapply(trans, length)
+hist(lTrans)
+```
+
+However only 88 of the 215 transcripts are in the precomputed simulated counts
+```{r}
+transAll <- unlist(trans)
+print(sum(transAll %in% rownames(seNonZero)))
+
+```
+
+```{r}
+sumStat <- c("infRV", "means", "LowC", "HighC")
+infType <- c("Boot", "GS")
+
+for(s in sumStat)
+{
+    for(i in seq_along(infType))
+    {
+        cName <- paste(s, infType[i], sep = "_")
+        eqTrans[,cName] <- sapply(trans, function(x) paste(round(assays(se)[[s]][x,i],4), collapse = ","))
+    }
+}
+write.table(eqTrans, "../../real_data/networkx/thought_exp.txt", sep = "\t", row.names = F)
+```

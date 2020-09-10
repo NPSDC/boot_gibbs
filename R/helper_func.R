@@ -1,5 +1,24 @@
+library(SummarizedExperiment)
 computeConfInt <- function(txiImp, perc = 95)
 {
+    if(is(txiImp, "SummarizedExperiment"))
+    {
+        infReps <- assays(txiImp)[grep("infRep",assayNames(txiImp))]
+        infReps <- abind::abind(as.list(infReps), along=3)
+        if(!("means" %in% assayNames(txiImp)))
+            assays(txiImp, withDimnames = F)[["means"]] <- apply(infReps, 1:2, mean)    
+        if(!("variance" %in% assayNames(txiImp)))
+            assays(txiImp, withDimnames = F)[["variance"]] <- apply(infReps, 1:2, var)
+        txiImp <- computeInfRV(txiImp)
+    
+        N <- dim(infReps)[3]
+        k = as.integer(N*(1-perc/100)/2)
+        
+        assays(txiImp, withDimnames = F)[["LowC"]] <- apply(infReps, 1:2, function(x) quantile(x, probs = c(0.025)))
+        assays(txiImp, withDimnames = F)[["HighC"]] <- apply(infReps, 1:2, function(x) quantile(x, probs = c(0.975)))
+
+        return(txiImp)
+    }
     infLi <- txiImp[["infReps"]]
     N <- ncol(infLi[[1]])
     k = as.integer(N*(1-perc/100)/2)
@@ -83,6 +102,27 @@ computeInfRep <- function(matList, pc = 5, shift = .01)
     return(InfRVs)
 }
 
+computeInfRV <- function(y, pc=5, shift=.01, meanVariance) {
+    if (missing(meanVariance)) {
+        meanVariance <- all(c("mean","variance") %in% assayNames(y))
+    }
+    if (meanVariance) {
+        stopifnot(all(c("mean","variance") %in% assayNames(y)))
+        infVar <- assays(y)[["variance"]]
+        mu <- assays(y)[["mean"]]
+    } else {
+        infReps <- assays(y)[grep("infRep",assayNames(y))]
+        infReps <- abind::abind(as.list(infReps), along=3)
+        infVar <- apply(infReps, 1:2, var)
+        mu <- apply(infReps, 1:2, mean)
+    }
+    # the InfRV computation:
+    InfRV <- pmax(infVar - mu, 0)/(mu + pc) + shift
+    mcols(y)$meanInfRV <- rowMeans(InfRV)
+    assays(y, withDimnames = F)[["infRV"]] <- InfRV
+    y
+}
+
 plotHist <- function(plotDf, var)
 {
     library(ggpubr)
@@ -136,7 +176,28 @@ computeCoverage <- function(counts, infRep, indsList, prop = T)
     if(class(indsList) != "list")
         stop("Indexes should be list")
     if(nrow(infRep) != length(counts))
+    {
+        print(paste(nrow(infRep), length(counts)))
         stop("rows are not same as length")
+    }
+    
+    if(is(infRep, "SummarizedExperiment"))
+    {
+        highC <- assays(infRep)[["HighC"]]
+        lowC <- assays(infRep)[["LowC"]]
+        if(prop)
+        {
+            df <- matrix(0, ncol = ncol(infRep), nrow = length(indsList), dimnames = list(seq(length(indsList)), colnames(infRep)))
+            for(i in seq_along(indsList))
+            {
+                inds = indsList[[i]]
+                for(j in seq(ncol(infRep)))
+                    df[i,j] <- sum(lowC[inds, j] <= counts[inds] & counts[inds] <= highC[inds, j])/length(inds)
+            }
+        }
+        return(df)
+    }
+    
     if(prop)
     {
         rat <- sapply(indsList, function(inds)
