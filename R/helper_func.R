@@ -1,25 +1,66 @@
 library(SummarizedExperiment)
-computeConfInt <- function(txiImp, perc = 95)
+
+computeSizeFactors <- function(se, trueCounts)
 {
-    if(is(txiImp, "SummarizedExperiment"))
+    if(!is(se, "SummarizedExperiment"))
+        stop("Not a summarized experiment")
+    if(length(trueCounts) != nrow(se))
+        stop("rows dont match")
+
+    
+    infReps <- assays(se)[grep("infRep",assayNames(se))]
+    infReps <- abind::abind(as.list(infReps), along=3)
+    
+    sizeFac <- list()
+    sizeFac[["DESeq2"]] <- matrix(0, nrow = dim(infReps)[3] + 2, ncol = ncol(se), 
+                      dimnames = list(c("True", "Sim", dimnames(infReps)[[3]]), colnames(se)))
+    sizeFac[["medScale"]] <- matrix(0, nrow = dim(infReps)[3] + 2, ncol = ncol(se), 
+                                  dimnames = list(c("True", "Sim", dimnames(infReps)[[3]]), colnames(se)))
+    for(i in seq(ncol(se)))
     {
-        infReps <- assays(txiImp)[grep("infRep",assayNames(txiImp))]
+        print(i)
+        sizeFac[["DESeq2"]][,i] <- DESeq2::estimateSizeFactorsForMatrix(cbind(trueCounts, assays(se)[["counts"]][,i], infReps[,i,]))
+        sizeFac[["medScale"]]["True",i] <- 1
+        sizeFac[["medScale"]]["Sim",i] <- exp(median(log(trueCounts) - log(assays(se)[["counts"]][,i])))
+        sizeFac[["medScale"]][3:dim(sizeFac[["medScale"]])[1],i] <- apply(infReps[,i,], 2, function(x) exp(median(log(trueCounts) - log(x))))
+    }
+
+    metadata(se)[["sf"]] <- sizeFac
+    return(se)
+}
+
+computeConfInt <- function(se, perc = 95, sf = T, type = "DESeq2", log = F)
+{
+    if(is(se, "SummarizedExperiment"))
+    {
+        infReps <- assays(se)[grep("infRep",assayNames(se))]
         infReps <- abind::abind(as.list(infReps), along=3)
-        if(!("means" %in% assayNames(txiImp)))
-            assays(txiImp, withDimnames = F)[["means"]] <- apply(infReps, 1:2, mean)    
-        if(!("variance" %in% assayNames(txiImp)))
-            assays(txiImp, withDimnames = F)[["variance"]] <- apply(infReps, 1:2, var)
-        txiImp <- computeInfRV(txiImp)
+        metadata(se)[["type"]] <- type
+        metadata(se)[["log"]] <- log
+        
+        if(sf)
+        {
+            if(! "sf" %in% names(metadata(se)))
+                stop("Size Factor needs to be computed")
+            sizeFac <- metadata(se)[["sf"]][[type]]
+            for(i in seq(dim(sizeFac)[2]))
+                infReps[,i,] <- t(t(infReps[,i,])/sizeFac[3:dim(sizeFac)[1],i])
+        }
+        
+        assays(se, withDimnames = F)[["means"]] <- apply(infReps, 1:2, mean)    
+        assays(se, withDimnames = F)[["variance"]] <- apply(infReps, 1:2, var)
+        
+        se <- fishpond::computeInfRV(se)
     
         N <- dim(infReps)[3]
-        k = as.integer(N*(1-perc/100)/2)
+        k = (100-perc)/200
         
-        assays(txiImp, withDimnames = F)[["LowC"]] <- apply(infReps, 1:2, function(x) quantile(x, probs = c(0.025)))
-        assays(txiImp, withDimnames = F)[["HighC"]] <- apply(infReps, 1:2, function(x) quantile(x, probs = c(0.975)))
+        assays(se, withDimnames = F)[["LowC"]] <- apply(infReps, 1:2, function(x) quantile(x, probs = c(k)))
+        assays(se, withDimnames = F)[["HighC"]] <- apply(infReps, 1:2, function(x) quantile(x, probs = c(1-k)))
 
-        return(txiImp)
+        return(se)
     }
-    infLi <- txiImp[["infReps"]]
+    infLi <- se[["infReps"]]
     N <- ncol(infLi[[1]])
     k = as.integer(N*(1-perc/100)/2)
     conf <- vector(mode = "list", length(infLi))
@@ -32,12 +73,12 @@ computeConfInt <- function(txiImp, perc = 95)
             c(sortX[k], sortX[length(x)-k+1], mean(x), var(x))
             #c(Rfast::nth(x, k, descending = F), Rfast::nth(x, k, descending = T), mean(x), var(x))
         })))
-        dimnames(conf[[i]]) = list(rownames(txiImp[["counts"]]), c("LowC", "HighC", "Mean", "Var"))
+        dimnames(conf[[i]]) = list(rownames(se[["counts"]]), c("LowC", "HighC", "Mean", "Var"))
         conf[[i]] <- as.data.frame(conf[[i]])
         conf[[i]] <- cbind(conf[[i]], "Width" = conf[[i]][,2] - conf[[i]][,1])
     }
-    txiImp$conf <- conf
-    return(txiImp)
+    se$conf <- conf
+    return(se)
 }
 
 countReads <- function(df)
@@ -183,8 +224,16 @@ computeCoverage <- function(counts, infRep, indsList, prop = T)
     
     if(is(infRep, "SummarizedExperiment"))
     {
+        if(!"LowC" %in% assayNames(infRep))
+            stop("LowC not in assayNames")
         highC <- assays(infRep)[["HighC"]]
         lowC <- assays(infRep)[["LowC"]]
+        sf <- rep(1, ncol(infRep)) ##Sizefactor for true counts
+        if("type" %in% names(metadata(infRep)))
+        {
+            type <- metadata(infRep)[["type"]]
+            sf <- metadata(infRep)[["sf"]][[type]][1,]
+        }
         if(prop)
         {
             df <- matrix(0, ncol = ncol(infRep), nrow = length(indsList), dimnames = list(seq(length(indsList)), colnames(infRep)))
@@ -192,7 +241,7 @@ computeCoverage <- function(counts, infRep, indsList, prop = T)
             {
                 inds = indsList[[i]]
                 for(j in seq(ncol(infRep)))
-                    df[i,j] <- sum(lowC[inds, j] <= counts[inds] & counts[inds] <= highC[inds, j])/length(inds)
+                    df[i,j] <- sum(lowC[inds, j] <= counts[inds]/sf[j] & counts[inds]/sf[j] <= highC[inds, j])/length(inds)
             }
         }
         return(df)
