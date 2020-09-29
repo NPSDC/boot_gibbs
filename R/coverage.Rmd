@@ -1,0 +1,57 @@
+---
+title: "coverage.Rmd"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Loading the data
+```{r}
+library(tximeta)
+dir <- "../../real_data/out"
+load("../../real_data/out_1/sim_counts_matrix.rda")
+source("helper_func.R")
+
+files <- file.path(dir, c("sample_01_B_100", "sample_01_GS_100"), "quant.sf")
+coldata <- data.frame(files, names = c("sample_01_B_100", "sample_01_GS_100"), infType = c("Boot", "GS"), stringsAsFactors = F)
+se <- tximeta(coldata)
+
+mInds <- match(rownames(counts_matrix), rownames(se))
+seNonZero <- se[mInds,]
+```
+
+Below we compute coverage using different conditions
+### Without scaling factors
+```{r}
+seNonZero <- computeSizeFactors(seNonZero, counts_matrix[,1])
+seNonZero <- computeConfInt(seNonZero, sf = F)
+print(computeCoverage(counts_matrix[,1], seNonZero, list(seq(nrow(counts_matrix)))))
+```
+
+#### Using logs
+```{r}
+seNonZero <- computeConfInt(seNonZero, sf = F, log = T)
+print(computeCoverage(counts_matrix[,1], seNonZero, list(seq(nrow(counts_matrix)))))
+```
+
+### With scaling factors
+```{r}
+seNonZero <- computeConfInt(seNonZero, type = "DESeq2", sf = T)
+print(computeCoverage(counts_matrix[,1], seNonZero, list(seq(nrow(counts_matrix)))))
+seNonZero <- computeConfInt(seNonZero, sf = T, type = "medScale")
+print(computeCoverage(counts_matrix[,1], seNonZero, list(seq(nrow(counts_matrix)))))
+seNonZero <- computeConfInt(seNonZero, sf = T, type = "depthScale")
+print(computeCoverage(counts_matrix[,1], seNonZero, list(seq(nrow(counts_matrix)))))
+```
+
+#### Using logs
+```{r}
+seNonZero <- computeConfInt(seNonZero, sf = T, type = "DESeq2", log = T)
+print(computeCoverage(counts_matrix[,1], seNonZero, list(seq(nrow(counts_matrix)))))
+seNonZero <- computeConfInt(seNonZero, sf = T, type = "medScale", log = T)
+print(computeCoverage(counts_matrix[,1], seNonZero, list(seq(nrow(counts_matrix)))))
+seNonZero <- computeConfInt(seNonZero, sf = T, type = "depthScale", log = T)
+print(computeCoverage(counts_matrix[,1], seNonZero, list(seq(nrow(counts_matrix)))))
+```

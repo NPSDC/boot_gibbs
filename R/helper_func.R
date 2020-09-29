@@ -11,18 +11,24 @@ computeSizeFactors <- function(se, trueCounts)
     infReps <- assays(se)[grep("infRep",assayNames(se))]
     infReps <- abind::abind(as.list(infReps), along=3)
     
-    sizeFac <- list()
-    sizeFac[["DESeq2"]] <- matrix(0, nrow = dim(infReps)[3] + 2, ncol = ncol(se), 
-                      dimnames = list(c("True", "Sim", dimnames(infReps)[[3]]), colnames(se)))
-    sizeFac[["medScale"]] <- matrix(0, nrow = dim(infReps)[3] + 2, ncol = ncol(se), 
-                                  dimnames = list(c("True", "Sim", dimnames(infReps)[[3]]), colnames(se)))
+    sizeFac <- vector(mode = "list", length = 3)
+    names(sizeFac) <- c("DESeq2", "medScale", "depthScale")
+    
+    for(i in seq_along(sizeFac))
+        sizeFac[[i]] <- matrix(1, nrow = dim(infReps)[3] + 2, ncol = ncol(se), 
+                                      dimnames = list(c("True", "Sim", dimnames(infReps)[[3]]), colnames(se)))    
+    
+    
     for(i in seq(ncol(se)))
     {
         print(i)
         sizeFac[["DESeq2"]][,i] <- DESeq2::estimateSizeFactorsForMatrix(cbind(trueCounts, assays(se)[["counts"]][,i], infReps[,i,]))
-        sizeFac[["medScale"]]["True",i] <- 1
-        sizeFac[["medScale"]]["Sim",i] <- exp(median(log(trueCounts) - log(assays(se)[["counts"]][,i])))
-        sizeFac[["medScale"]][3:dim(sizeFac[["medScale"]])[1],i] <- apply(infReps[,i,], 2, function(x) exp(median(log(trueCounts) - log(x))))
+        
+        sfs <- exp(median(log(trueCounts) - log(assays(se)[["counts"]][,i])))
+        sfs <- c(sfs, apply(infReps[,i,], 2, function(x) exp(median(log(trueCounts) - log(x)))))
+        sizeFac[["medScale"]]["True",i] <- mean(sfs)
+        
+        sizeFac[["depthScale"]][1,i] <- sum(trueCounts)/sum(assays(se)[["counts"]][,i])
     }
 
     metadata(se)[["sf"]] <- sizeFac
@@ -35,7 +41,8 @@ computeConfInt <- function(se, perc = 95, sf = T, type = "DESeq2", log = F)
     {
         infReps <- assays(se)[grep("infRep",assayNames(se))]
         infReps <- abind::abind(as.list(infReps), along=3)
-        metadata(se)[["type"]] <- type
+        if("type" %in% names(metadata(se)))
+            metadata(se)[["type"]] <- NULL
         metadata(se)[["log"]] <- log
         
         if(sf)
@@ -43,10 +50,13 @@ computeConfInt <- function(se, perc = 95, sf = T, type = "DESeq2", log = F)
             if(! "sf" %in% names(metadata(se)))
                 stop("Size Factor needs to be computed")
             sizeFac <- metadata(se)[["sf"]][[type]]
+            
+            metadata(se)[["type"]] <- type
             for(i in seq(dim(sizeFac)[2]))
                 infReps[,i,] <- t(t(infReps[,i,])/sizeFac[3:dim(sizeFac)[1],i])
         }
-        
+        if(log)
+            infReps <- log(infReps)
         assays(se, withDimnames = F)[["means"]] <- apply(infReps, 1:2, mean)    
         assays(se, withDimnames = F)[["variance"]] <- apply(infReps, 1:2, var)
         
@@ -93,6 +103,66 @@ countReads <- function(df)
             countDf[[ens]] = 1
     }
     return(data.frame(countDf))
+}
+
+computeCoverage <- function(counts, infRep, indsList, prop = T)
+{
+    if(class(indsList) != "list")
+        stop("Indexes should be list")
+    if(nrow(infRep) != length(counts))
+    {
+        print(paste(nrow(infRep), length(counts)))
+        stop("rows are not same as length")
+    }
+    
+    if(is(infRep, "SummarizedExperiment"))
+    {
+        if(!"LowC" %in% assayNames(infRep))
+            stop("LowC not in assayNames")
+        highC <- assays(infRep)[["HighC"]]
+        lowC <- assays(infRep)[["LowC"]]
+        sf <- rep(1, ncol(infRep)) ##Sizefactor for true counts
+        if("type" %in% names(metadata(infRep)))
+        {
+            type <- metadata(infRep)[["type"]]
+            sf <- metadata(infRep)[["sf"]][[type]][1,]
+        }
+        print(sf)
+        if(prop)
+        {
+            df <- matrix(0, ncol = ncol(infRep), nrow = length(indsList), dimnames = list(seq(length(indsList)), colnames(infRep)))
+            for(i in seq_along(indsList))
+            {
+                inds = indsList[[i]]
+                for(j in seq(ncol(infRep)))
+                {
+                    reqCounts <- counts[inds]/sf[j]
+                    if(metadata(infRep)[["log"]])
+                        reqCounts <- log(reqCounts)
+                    df[i,j] <- sum(lowC[inds, j] <= reqCounts & reqCounts <= highC[inds, j])/length(inds)
+                }
+            }
+        }
+        return(df)
+    }
+    
+    if(prop)
+    {
+        rat <- sapply(indsList, function(inds)
+        {
+            sum(infRep[inds, "LowC"] <= counts[inds] & counts[inds] <= infRep[inds, "HighC"])/length(inds)
+        })    
+    }
+    else
+    {
+        rat <- sapply(indsList, function(inds)
+        {
+            ifelse(infRep[inds, "LowC"] <= counts[inds] & counts[inds] <= infRep[inds, "HighC"], 1, 0)
+        })
+    }
+    
+    names(rat) <- names(indsList)
+    return(rat)
 }
 
 createPlotDf <- function(matList, indsList = NULL, namesMat = NULL)
@@ -210,60 +280,6 @@ extractBinInds <- function(counts, breaks = 100)
     #gsub("\\]$","",gsub(pattern="\\[\\d+[,]\\s", "", levels(binNumbers))
     names(inds) <- upLev
     return(inds)
-}
-
-computeCoverage <- function(counts, infRep, indsList, prop = T)
-{
-    if(class(indsList) != "list")
-        stop("Indexes should be list")
-    if(nrow(infRep) != length(counts))
-    {
-        print(paste(nrow(infRep), length(counts)))
-        stop("rows are not same as length")
-    }
-    
-    if(is(infRep, "SummarizedExperiment"))
-    {
-        if(!"LowC" %in% assayNames(infRep))
-            stop("LowC not in assayNames")
-        highC <- assays(infRep)[["HighC"]]
-        lowC <- assays(infRep)[["LowC"]]
-        sf <- rep(1, ncol(infRep)) ##Sizefactor for true counts
-        if("type" %in% names(metadata(infRep)))
-        {
-            type <- metadata(infRep)[["type"]]
-            sf <- metadata(infRep)[["sf"]][[type]][1,]
-        }
-        if(prop)
-        {
-            df <- matrix(0, ncol = ncol(infRep), nrow = length(indsList), dimnames = list(seq(length(indsList)), colnames(infRep)))
-            for(i in seq_along(indsList))
-            {
-                inds = indsList[[i]]
-                for(j in seq(ncol(infRep)))
-                    df[i,j] <- sum(lowC[inds, j] <= counts[inds]/sf[j] & counts[inds]/sf[j] <= highC[inds, j])/length(inds)
-            }
-        }
-        return(df)
-    }
-    
-    if(prop)
-    {
-        rat <- sapply(indsList, function(inds)
-        {
-            sum(infRep[inds, "LowC"] <= counts[inds] & counts[inds] <= infRep[inds, "HighC"])/length(inds)
-        })    
-    }
-    else
-    {
-        rat <- sapply(indsList, function(inds)
-        {
-            ifelse(infRep[inds, "LowC"] <= counts[inds] & counts[inds] <= infRep[inds, "HighC"], 1, 0)
-        })
-    }
-    
-    names(rat) <- names(indsList)
-    return(rat)
 }
 
 plotCovDf <- function(covDf, line = F)
