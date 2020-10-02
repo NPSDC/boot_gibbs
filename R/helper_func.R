@@ -127,7 +127,7 @@ computeCoverage <- function(counts, infRep, indsList, prop = T)
             type <- metadata(infRep)[["type"]]
             sf <- metadata(infRep)[["sf"]][[type]][1,]
         }
-        print(sf)
+        #print(sf)
         if(prop)
         {
             df <- matrix(0, ncol = ncol(infRep), nrow = length(indsList), dimnames = list(seq(length(indsList)), colnames(infRep)))
