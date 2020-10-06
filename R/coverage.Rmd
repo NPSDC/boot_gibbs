@@ -53,7 +53,6 @@ rownames(dfCoverage) <- as.vector(t(outer(nInf, infTypes, paste, sep = "_")))
 dfLogCoverage <- data.frame(NoScale = rep(0, r), DeScale = rep(0, r), MedScale = rep(0, r), depthScale = rep(0, r))
 rownames(dfLogCoverage) <-  as.vector(t(outer(nInf, infTypes, paste, sep = "_")))
 
-save(seList, file = "environment/seList.RData")
 ```
 
 Below we compute coverage using different conditions
@@ -74,6 +73,7 @@ for(i in seq_along(seList))
     print(c(start, end))
     start = end + 1
 }
+save(seList, file = "environment/seList.RData")
 save(dfCoverage, file = "environment/dfCoverage.RData")
 print(dfCoverage)
 ```
@@ -96,4 +96,11 @@ for(i in seq_along(seList))
 }
 save(dfLogCoverage, file = "environment/dfLogCoverage.RData")
 print(dfLogCoverage)
+```
+
+```{r}
+seList[["100"]] <- computeConfInt(seList[["100"]], sf = T)
+cInds100 <- extractBinInds(counts_matrix[,1], breaks = 100)
+covDf <- createCovDf(seList[["100"]], counts_matrix[,1], cInds100)
+print(plotCovDf(covDf))
 ```

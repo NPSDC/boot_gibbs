@@ -1,5 +1,11 @@
 library(SummarizedExperiment)
-
+getInf <- function(se)
+{
+    library(SummarizedExperiment)
+    infReps <- assays(se)[grep("infRep",assayNames(se))]
+    infReps <- abind::abind(as.list(infReps), along=3)   
+    return(infReps)
+}
 computeSizeFactors <- function(se, trueCounts)
 {
     if(!is(se, "SummarizedExperiment"))
@@ -67,7 +73,7 @@ computeConfInt <- function(se, perc = 95, sf = T, type = "DESeq2", log = F)
         
         assays(se, withDimnames = F)[["LowC"]] <- apply(infReps, 1:2, function(x) quantile(x, probs = c(k)))
         assays(se, withDimnames = F)[["HighC"]] <- apply(infReps, 1:2, function(x) quantile(x, probs = c(1-k)))
-
+        assays(se, withDimnames = F)[["Width"]] <- assays(se, withDimnames = F)[["HighC"]] - assays(se, withDimnames = F)[["LowC"]]
         return(se)
     }
     infLi <- se[["infReps"]]
@@ -127,23 +133,40 @@ computeCoverage <- function(counts, infRep, indsList, prop = T)
             type <- metadata(infRep)[["type"]]
             sf <- metadata(infRep)[["sf"]][[type]][1,]
         }
-        #print(sf)
+        
+        df <- matrix(0,1,1)
+        covInds <- list()
         if(prop)
-        {
             df <- matrix(0, ncol = ncol(infRep), nrow = length(indsList), dimnames = list(seq(length(indsList)), colnames(infRep)))
-            for(i in seq_along(indsList))
+        else
+        {
+            covInds <- vector(mode = "list", length(indsList))
+            names(covInds) <- names(indsList)
+            for(i in seq_along(covInds))
             {
-                inds = indsList[[i]]
-                for(j in seq(ncol(infRep)))
-                {
-                    reqCounts <- counts[inds]/sf[j]
-                    if(metadata(infRep)[["log"]])
-                        reqCounts <- log(reqCounts)
+                covInds[[i]] <- vector(mode = "list", length = ncol(infRep))
+                names(covInds[[i]]) <- colnames(infRep)
+            }    
+        }
+        
+        for(i in seq_along(indsList))
+        {
+            inds = indsList[[i]]
+            for(j in seq(ncol(infRep)))
+            {
+                reqCounts <- counts[inds]/sf[j]
+                if(metadata(infRep)[["log"]])
+                    reqCounts <- log(reqCounts)
+                if(prop)
                     df[i,j] <- sum(lowC[inds, j] <= reqCounts & reqCounts <= highC[inds, j])/length(inds)
-                }
+                else
+                    covInds[[i]][[j]] <- which(lowC[inds, j] <= reqCounts & reqCounts <= highC[inds, j])
             }
         }
-        return(df)
+        if(prop)
+            return(df)
+        else
+            return(covInds)
     }
     
     if(prop)
@@ -276,24 +299,67 @@ extractBinInds <- function(counts, breaks = 100)
     binCounts <- bins(uniqueCounts, target.bins = breaks, max.breaks = breaks)
     binNumbers = cut(counts, bins.getvals(binCounts), labels = names(binCounts$binct))
     inds <- lapply(levels(binNumbers), function(b) which(binNumbers == b))
-    upLev <- binCounts$binhi
     #gsub("\\]$","",gsub(pattern="\\[\\d+[,]\\s", "", levels(binNumbers))
-    names(inds) <- upLev
+    names(inds) <- sapply(inds, function(x) as.character(max(counts[x])))
     return(inds)
 }
 
 plotCovDf <- function(covDf, line = F)
 {
     library(ggplot2)
-    p <- ggplot(covDf, aes(x = log2Counts, y = CI_Coverage, color = Type, shape = Type)) + 
+    p <- ggplot(covDf, aes(x = log2Counts, y = Coverage, color = Type, shape = Type)) + 
         geom_point() +  scale_x_continuous()
     if(line)
         p <- p + geom_line()
     return(p)
 }
 
-createCovDf <- function(confList, counts, cInds)
+createDensityPlot <- function(se, transcript, cols = NULL)
 {
+    library(ggplot2)
+    inf <- getInf(se)
+    if(!transcript %in% dimnames(se)[[1]])
+        stop("Transcript not present in dimnames")
+    df <- data.frame(t(inf[transcript,,]))
+    if(!is.null(cols))
+    {
+        if(ncol(df) != length(cols))
+            stop("Columns are not equal")
+        colnames(df) <- cols
+    }
+    
+    df <- reshape::melt(df)
+    
+    colnames(df) <- c("Type", "infCounts")
+    countT <- data.frame(counts = assays(se)[["counts"]][transcript,], type = unique(df[,"Type"]))
+    
+    p <- ggplot(df, aes(x = infCounts, color=Type)) + geom_density() +
+        geom_vline(data = countT, aes(xintercept=counts, color = type), linetype = "dashed", size = 1)
+    return(p)
+}
+
+createCovDf <- function(confList, counts, cInds, cols = NULL, logC = T)
+{
+    library(reshape)
+    if(is(confList, "SummarizedExperiment"))
+    {
+        
+        df <- computeCoverage(counts, confList, cInds)
+        if(!is.null(cols))
+        {
+            if(length(cols) != ncol(df))
+                stop("Not enough columns")
+            colnames(df) <- cols
+        }
+        counts = as.numeric(names(cInds))
+        if(logC)
+            counts=log2(counts)
+        dfMelt <- melt(df)
+        dfMelt <- cbind(dfMelt, rep(counts, ncol(df)))
+        colnames(dfMelt) <- c("inds", "Type", "Coverage", "log2Counts")
+        return(dfMelt)
+        
+    }
     if(is.null(names(confList)))
         stop("Names cannot be NULL")
     l <- length(confList)
