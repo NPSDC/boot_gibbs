@@ -102,5 +102,33 @@ print(dfLogCoverage)
 seList[["100"]] <- computeConfInt(seList[["100"]], sf = T)
 cInds100 <- extractBinInds(counts_matrix[,1], breaks = 100)
 covDf <- createCovDf(seList[["100"]], counts_matrix[,1], cInds100)
-print(plotCovDf(covDf))
+ggsave(filename = "../../presentations/Oct7/coverage.png", plotCovDf(covDf, line=T))
+```
+
+
+### Comaprison of counts
+```{r}
+se <- seList[["100"]]
+sfTrue <- metadata(se)[["sf"]][["DESeq2"]][1,]
+sfEst <- metadata(se)[["sf"]][["DESeq2"]][2,]
+
+dfBoot <- data.frame(Est = assays(se)[["counts"]][,1]/sfEst[1], True = counts_matrix[,1]/sfTrue[1])
+dfGS <- data.frame(Est = assays(se)[["counts"]][,2]/sfEst[2], True = counts_matrix[,1]/sfTrue[2])
+dfPolee <- data.frame(Est = assays(se)[["counts"]][,3]/sfEst[3], True = counts_matrix[,1]/sfTrue[3])
+
+cInds <- computeCoverage(counts_matrix[,1], se, indsList=cInds100, prop=F)
+covMissingInds <- vector(mode = "list", 100)
+for(i in seq_along(covMissingInds))
+{
+    covMissingInds[[i]] <- vector(mode = "list", length(cInds[[i]]))
+    covMissingInds[[i]] <- lapply(cInds[[i]], function(x) setdiff(cInds100[[i]], cInds100[[i]][x]))
+}
+
+getInds <- function(indsList, ind)
+{
+    return(unlist(lapply(indsList, function(x) x[[ind]])))
+}
+infInd <- 1
+transInds <- 100
+sum(dfBoot[getInds(covMissingInds[transInds],infInd),"Est"] > dfBoot[getInds(covMissingInds[transInds],infInd),"True"])
 ```

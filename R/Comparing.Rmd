@@ -1,0 +1,73 @@
+---
+title: "Comparing"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Loading data and computing coverages
+```{r warning=F,message=F}
+source("helper_func.R")
+suppressPackageStartupMessages(library(SummarizedExperiment))
+load("environment/seList.RData")
+load("../../real_data/out_1/sim_counts_matrix.rda")
+
+se100 <- seList[["100"]]
+se100 <- computeSizeFactors(se100, counts_matrix[,1])
+se100 <- computeConfInt(se100, sf = T)
+covInds <- computeCoverage(counts_matrix[,1], se100, list(seq(nrow(counts_matrix))), prop = F)[[1]]
+```
+
+### Number of transcripts that are covered by all the 3 methods
+```{r}
+commInds <- Reduce(intersect, covInds)
+print(length(commInds))
+```
+
+### Transcripts that are covered by only 1 method
+```{r}
+library(VennDiagram)
+bootOnly <- setdiff(setdiff(covInds[[1]],covInds[[2]]), covInds[[3]])
+gibbsOnly <- setdiff(setdiff(covInds[[2]],covInds[[1]]), covInds[[3]])
+poleeOnly <- setdiff(setdiff(covInds[[3]],covInds[[1]]), covInds[[2]])
+
+g <- venn.diagram(covInds, category.names=names(covInds), filename=NULL, output=T)
+grid.draw(g)
+```
+
+### Number of transcripts for which the width is lower across the common covered transcripts
+```{r}
+minInds <- apply(assays(se100)[["Width"]][commInds, ], 1, which.min)
+tb <- table(minInds)
+names(tb) <- c("Boot", "Gibbs", "Polee")
+print(tb)
+```
+
+### Number of transcripts for which the width is lower across the common covered transcripts only b/w boots and GS removing other common transcripts
+```{r}
+bGSInds <- setdiff(intersect(covInds[[1]], covInds[[2]]), commInds)
+minInds <- apply(assays(se100)[["Width"]][bGSInds, 1:2], 1, which.min)
+tb <- table(minInds)
+names(tb) <- c("Boot", "Gibbs")
+print(tb)
+```
+
+### Number of transcripts for which the width is lower across the common covered transcripts only b/w boots and Polee removing other common transcripts
+```{r}
+bPolInds <- setdiff(intersect(covInds[[1]], covInds[[3]]), commInds)
+minInds <- apply(assays(se100)[["Width"]][bPolInds, c(1,3)], 1, which.min)
+tb <- table(minInds)
+names(tb) <- c("Boot", "Polee")
+print(tb)
+```
+
+### Number of transcripts for which the width is lower across the common covered transcripts only b/w Gibbs and Polee removing other common transcripts
+```{r}
+gPolInds <- setdiff(intersect(covInds[[2]], covInds[[3]]), commInds)
+minInds <- apply(assays(se100)[["Width"]][gPolInds, c(2,3)], 1, which.min)
+tb <- table(minInds)
+names(tb) <- c("Gibbs", "Polee")
+print(tb)
+```

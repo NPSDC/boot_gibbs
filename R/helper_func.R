@@ -63,10 +63,10 @@ computeConfInt <- function(se, perc = 95, sf = T, type = "DESeq2", log = F)
         }
         if(log)
             infReps <- log(infReps)
-        assays(se, withDimnames = F)[["means"]] <- apply(infReps, 1:2, mean)    
+        assays(se, withDimnames = F)[["mean"]] <- apply(infReps, 1:2, mean)    
         assays(se, withDimnames = F)[["variance"]] <- apply(infReps, 1:2, var)
         
-        se <- fishpond::computeInfRV(se)
+        se <- computeInfRV(se, meanVariance = T)
     
         N <- dim(infReps)[3]
         k = (100-perc)/200
@@ -311,10 +311,11 @@ plotCovDf <- function(covDf, line = F)
         geom_point() +  scale_x_continuous()
     if(line)
         p <- p + geom_line()
+    p <- p + theme_grey(base_size = 12) + theme(legend.position = "bottom") 
     return(p)
 }
 
-createDensityPlot <- function(se, transcript, cols = NULL)
+plotDensity <- function(se, transcript, cols = NULL)
 {
     library(ggplot2)
     inf <- getInf(se)
@@ -336,6 +337,24 @@ createDensityPlot <- function(se, transcript, cols = NULL)
     p <- ggplot(df, aes(x = infCounts, color=Type)) + geom_density() +
         geom_vline(data = countT, aes(xintercept=counts, color = type), linetype = "dashed", size = 1)
     return(p)
+}
+
+plotCounts <- function(se, trueCounts, log = T, inds = 1)
+{
+    library(ggplot2)
+    df <- data.frame(cbind(estCounts = assays(se)[["counts"]][,inds], trueCounts = trueCounts))
+    tit <- ""
+    if(log)
+    {
+        tit <- "log2 "
+        df <- log2(df+1)
+    }
+    
+    p <- ggplot(df, aes(x = estCounts, y = trueCounts)) +
+        geom_point() + geom_abline(slope = 1, intercept = 0) +
+         xlab(paste(tit, "Estimated Counts", sep = "")) + 
+         ylab(paste(tit, "True Counts", sep = ""))
+    return(p)    
 }
 
 createCovDf <- function(confList, counts, cInds, cols = NULL, logC = T)

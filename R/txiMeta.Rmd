@@ -65,8 +65,15 @@ hist(lTrans)
 However only 88 of the 215 transcripts are in the precomputed simulated counts
 ```{r}
 transAll <- unlist(trans)
-print(sum(transAll %in% rownames(seNonZero)))
-
+print(sum(transAll %in% rownames(counts_matrix)))
+tPInds <- match(intersect(transAll, rownames(counts_matrix)), rownames(counts_matrix))
+inds <- c()
+for(i in seq_along(trans))
+{
+    if(sum(trans[[i]] %in% rownames(counts_matrix)) == length(trans[[i]]))
+        inds <- c(inds, i)
+}
+plotDensity()
 ```
 
 ```{r}
