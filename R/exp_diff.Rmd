@@ -1,0 +1,105 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r warning=F, message=F}
+dir <- "../../real_data/out"
+load("../../real_data/out_1/sim_counts_matrix.rda")
+load("environment/seList.RData")
+load("environment/seListOld.RData")
+source("helper_func.R")
+library(ggplot2)
+library(ggpubr)
+```
+
+```{r}
+
+```
+
+### Using the fastq files
+```{r}
+counts_matrix <- read.table("../../real_data/out_1/sample_01_counts.csv", header=T, row.names=1)
+se <- seList[["100"]]
+metadata(se)[["trueCounts"]] <- counts_matrix[,1]
+se <- computeConfInt(se, sf = T)
+```
+### Plotting Width
+#### The plot on the left is the width with count and width/count with count
+```{r  fig.dim=c(10,10)}
+# df <- createWidthDf(se, counts_matrix)
+# p <- plotWidthDf(df)
+# pComb <- ggarrange(p[[1]], p[[2]])
+knitr::include_graphics("pWidth.png")
+```
+
+### Plotting the coverage difference
+I vary the number of bins, which means number of transcripts decrease inside each bin as the b
+```{r fig.dim=c(10,10)}
+nB = c(20,50,100,200, 500)
+pNb <- vector(mode = "list", length = 5)
+i=1
+for(b in nB)
+{
+    cInds <- extractBinInds(counts_matrix[,1], breaks = b)
+    covDf <- createCovDf(se, counts_matrix[,1], cInds)
+    covDf[(b*2+1):(b*3),3] = abs(covDf[1:b,3] - covDf[(b*1+1):(b*2),3])
+    covDf[,2] = as.character(covDf[,2])
+    covDf[(b*2+1):(b*3),2] = "Diff"
+    pNb[[i]] <- plotCovDf(covDf, line=T)
+    print(sort(covDf[(b*2+1):(b*3),3],decreasing=T)[1:20]*100)
+    i=i+1
+}
+i=1
+ggarrange(plotlist = pNb)
+```
+
+### Boxplots for 50 bins
+#### Plotting bias
+```{r warning=F, message=F, fig.dim=c(20,20)}
+pL <- plotSummary(se, counts_matrix[,1], summQuant="bias", nbreaks = 50, type = "BP")
+ggarrange(plotlist = pL, nrow = 5, ncol = 10)
+```
+
+#### Plotting infRV
+```{r warning=F, message=F, fig.dim=c(20,20)}
+pL <- plotSummary(se, counts_matrix[,1], summQuant="infRV", nbreaks = 50, type = "BP")
+ggarrange(plotlist = pL, nrow = 5, ncol = 10)
+```
+
+#### Plotting variance
+```{r warning=F, message=F, fig.dim=c(20,20)}
+pL <- plotSummary(se, counts_matrix[,1], summQuant="variance", nbreaks = 50, type = "BP")
+ggarrange(plotlist = pL, nrow = 5, ncol = 10)
+```
+
+#### Plotting Width
+```{r warning=F, message=F, fig.dim=c(20,20)}
+pL <- plotSummary(se, counts_matrix[,1], summQuant="Width", nbreaks = 50, type = "BP")
+ggarrange(plotlist = pL, nrow = 5, ncol = 10)
+```
+
+### Scatterplot for 20 bins
+#### Plotting bias
+```{r warning=F, message=F, fig.dim=c(20,20)}
+pL <- plotSummary(se, counts_matrix[,1], summQuant="bias", nbreaks = 20)
+ggarrange(plotlist = pL, nrow = 4, ncol = 5)
+```
+
+#### Plotting infRV
+```{r warning=F, message=F, fig.dim=c(20,20)}
+pL <- plotSummary(se, counts_matrix[,1], summQuant="infRV", nbreaks = 20)
+ggarrange(plotlist = pL, nrow = 4, ncol = 5)
+```
+
+#### Plotting variance
+```{r warning=F, message=F, fig.dim=c(20,20)}
+pL <- plotSummary(se, counts_matrix[,1], summQuant="variance", nbreaks = 20)
+ggarrange(plotlist = pL, nrow = 4, ncol = 5)
+```
+
+#### Plotting Width
+```{r warning=F, message=F, fig.dim=c(20,20)}
+pL <- plotSummary(se, counts_matrix[,1], summQuant="Width", nbreaks = 20)
+ggarrange(plotlist = pL, nrow = 4, ncol = 5)
+```

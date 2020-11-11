@@ -16,85 +16,88 @@ poleeDir <- "../../real_data/polee"
 load("../../real_data/out_1/sim_counts_matrix.rda")
 source("helper_func.R")
 
-samp <- "sample_01"
-nInf <- c(10, 100, 1000, 2000)
-infTypes <- c("B", "GS", "polee")
-
-seList <- vector(mode = "list", length(nInf))
-names(seList) <- as.character(nInf)
-
-for(n in nInf)
-{
-    files <- file.path(dir, paste(samp, infTypes[1:2], n, sep = "_"), "quant.sf")
-    coldata <- data.frame(files = files, names = paste(samp, infTypes[1:2], n, sep = "_"), infType = infTypes[1:2], stringsAsFactors = F)
-    se <- tximeta(coldata)
-    mInds <- match(rownames(counts_matrix), rownames(se))
-    seList[[as.character(n)]] <- se[mInds,]
-    
-    ### Integrating polee
-    poleeFiles <- file.path(poleeDir, samp, paste("boot", n, sep = "_"), "abundance.h5")
-    coldata <- data.frame(files = poleeFiles, names = paste(samp, "polee", n, sep = "_"), infType = "polee", stringsAsFactors = F)
-    se <- tximeta(coldata, type = "kallisto", txOut = T)
-    mInds <- match(rownames(counts_matrix), rownames(se))
-    se <- se[mInds,]
-    mInds <- match(rownames(se), rownames(seList[[as.character(n)]]))
-    se <- se[mInds,]
-    rowData(se) <- rowData(seList[[as.character(n)]])
-    rowRanges(se) <- rowRanges(seList[[as.character(n)]])
-    seList[[as.character(n)]] <- cbind(seList[[as.character(n)]], se)
-}
-
-r <- length(nInf)*length(infTypes)
-scaleTypes <- c("DESeq2", "medScale", "depthScale")
-
-dfCoverage <- data.frame(NoScale = rep(0, r), DeScale = rep(0, r), MedScale = rep(0, r), depthScale = rep(0, r))
-rownames(dfCoverage) <- as.vector(t(outer(nInf, infTypes, paste, sep = "_")))
-
-dfLogCoverage <- data.frame(NoScale = rep(0, r), DeScale = rep(0, r), MedScale = rep(0, r), depthScale = rep(0, r))
-rownames(dfLogCoverage) <-  as.vector(t(outer(nInf, infTypes, paste, sep = "_")))
+# samp <- "sample_01"
+# nInf <- c(10, 100, 1000, 2000)
+# infTypes <- c("B", "GS", "polee")
+counts_matrix <- read.table("../../real_data/out_1/sample_01_counts.csv", header=T, row.names=1)
+# seList <- vector(mode = "list", length(nInf))
+# names(seList) <- as.character(nInf)
+# 
+# for(n in nInf)
+# {
+#     files <- file.path(dir, paste(samp, infTypes[1:2], n, sep = "_"), "quant.sf")
+#     coldata <- data.frame(files = files, names = paste(samp, infTypes[1:2], n, sep = "_"), infType = infTypes[1:2], stringsAsFactors = F)
+#     se <- tximeta(coldata)
+#     mInds <- match(rownames(counts_matrix), rownames(se))
+#     seList[[as.character(n)]] <- se[mInds,]
+#     
+#     ### Integrating polee
+#     poleeFiles <- file.path(poleeDir, samp, paste("boot", n, sep = "_"), "abundance.h5")
+#     coldata <- data.frame(files = poleeFiles, names = paste(samp, "polee", n, sep = "_"), infType = "polee", stringsAsFactors = F)
+#     se <- tximeta(coldata, type = "kallisto", txOut = T)
+#     mInds <- match(rownames(counts_matrix), rownames(se))
+#     se <- se[mInds,]
+#     mInds <- match(rownames(se), rownames(seList[[as.character(n)]]))
+#     se <- se[mInds,]
+#     rowData(se) <- rowData(seList[[as.character(n)]])
+#     rowRanges(se) <- rowRanges(seList[[as.character(n)]])
+#     seList[[as.character(n)]] <- cbind(seList[[as.character(n)]], se)
+# }
+# 
+# r <- length(nInf)*length(infTypes)
+# scaleTypes <- c("DESeq2", "medScale", "depthScale")
+# 
+# dfCoverage <- data.frame(NoScale = rep(0, r), DeScale = rep(0, r), MedScale = rep(0, r), depthScale = rep(0, r))
+# rownames(dfCoverage) <- as.vector(t(outer(nInf, infTypes, paste, sep = "_")))
+# 
+# dfLogCoverage <- data.frame(NoScale = rep(0, r), DeScale = rep(0, r), MedScale = rep(0, r), depthScale = rep(0, r))
+# rownames(dfLogCoverage) <-  as.vector(t(outer(nInf, infTypes, paste, sep = "_")))
 
 ```
 
 Below we compute coverage using different conditions
 ### Without scaling factors
 ```{r}
-start = 1
-for(i in seq_along(seList))
-{
-    end = (start + length(infTypes)-1)
-    seList[[i]] <- computeSizeFactors(seList[[i]], counts_matrix[,1])
-    seList[[i]] <- computeConfInt(seList[[i]], sf = F)
-    dfCoverage[start:end,1] <- t(computeCoverage(counts_matrix[,1], seList[[i]], list(seq(nrow(counts_matrix)))))
-    for(j in seq_along(scaleTypes))
-    {
-        seList[[i]] <- computeConfInt(seList[[i]], sf = T, type = scaleTypes[j])
-        dfCoverage[start:end,j+1] <- t(computeCoverage(counts_matrix[,1], seList[[i]], list(seq(nrow(counts_matrix)))))
-    }
-    print(c(start, end))
-    start = end + 1
-}
-save(seList, file = "environment/seList.RData")
-save(dfCoverage, file = "environment/dfCoverage.RData")
+# start = 1
+# for(i in seq_along(seList))
+# {
+#     end = (start + length(infTypes)-1)
+#     seList[[i]] <- computeSizeFactors(seList[[i]], counts_matrix[,1])
+#     seList[[i]] <- computeConfInt(seList[[i]], sf = F)
+#     dfCoverage[start:end,1] <- t(computeCoverage(counts_matrix[,1], seList[[i]], list(seq(nrow(counts_matrix)))))
+#     for(j in seq_along(scaleTypes))
+#     {
+#         seList[[i]] <- computeConfInt(seList[[i]], sf = T, type = scaleTypes[j])
+#         dfCoverage[start:end,j+1] <- t(computeCoverage(counts_matrix[,1], seList[[i]], list(seq(nrow(counts_matrix)))))
+#     }
+#     print(c(start, end))
+#     start = end + 1
+# }
+# save(seList, file = "environment/seList.RData")
+# save(dfCoverage, file = "environment/dfCoverage.RData")
+load("environment/seList.RData")
+load("environment/dfCoverage.RData")
 print(dfCoverage)
 ```
 
 #### Using logs
 ```{r}
-start = 1
-for(i in seq_along(seList))
-{
-    end = (start + length(infTypes)-1)
-    seList[[i]] <- computeConfInt(seList[[i]], sf = F, log = T)
-    dfLogCoverage[start:end,1] <- t(computeCoverage(counts_matrix[,1], seList[[i]], list(seq(nrow(counts_matrix)))))
-    for(j in seq_along(scaleTypes))
-    {
-        seList[[i]] <- computeConfInt(seList[[i]], sf = T, log = T, type = scaleTypes[j])
-        dfLogCoverage[start:end,j+1] <- t(computeCoverage(counts_matrix[,1], seList[[i]], list(seq(nrow(counts_matrix)))))
-    }
-    print(c(start, end))
-    start = end + 1
-}
-save(dfLogCoverage, file = "environment/dfLogCoverage.RData")
+# start = 1
+# for(i in seq_along(seList))
+# {
+#     end = (start + length(infTypes)-1)
+#     seList[[i]] <- computeConfInt(seList[[i]], sf = F, log = T)
+#     dfLogCoverage[start:end,1] <- t(computeCoverage(counts_matrix[,1], seList[[i]], list(seq(nrow(counts_matrix)))))
+#     for(j in seq_along(scaleTypes))
+#     {
+#         seList[[i]] <- computeConfInt(seList[[i]], sf = T, log = T, type = scaleTypes[j])
+#         dfLogCoverage[start:end,j+1] <- t(computeCoverage(counts_matrix[,1], seList[[i]], list(seq(nrow(counts_matrix)))))
+#     }
+#     print(c(start, end))
+#     start = end + 1
+# }
+#save(dfLogCoverage, file = "environment/dfLogCoverage.RData")
+load("environment/dfLogCoverage.RData")
 print(dfLogCoverage)
 ```
 
@@ -102,33 +105,35 @@ print(dfLogCoverage)
 seList[["100"]] <- computeConfInt(seList[["100"]], sf = T)
 cInds100 <- extractBinInds(counts_matrix[,1], breaks = 100)
 covDf <- createCovDf(seList[["100"]], counts_matrix[,1], cInds100)
-ggsave(filename = "../../presentations/Oct7/coverage.png", plotCovDf(covDf, line=T))
+p <- plotCovDf(covDf, line=T)
+print(p)
+ggsave(filename = "../../presentations/Oct7/coverage.png", p)
 ```
 
 
-### Comaprison of counts
-```{r}
-se <- seList[["100"]]
-sfTrue <- metadata(se)[["sf"]][["DESeq2"]][1,]
-sfEst <- metadata(se)[["sf"]][["DESeq2"]][2,]
+<!-- ### Comaprison of counts -->
+<!-- ```{r} -->
+<!-- se <- seList[["100"]] -->
+<!-- sfTrue <- metadata(se)[["sf"]][["DESeq2"]][1,] -->
+<!-- sfEst <- metadata(se)[["sf"]][["DESeq2"]][2,] -->
 
-dfBoot <- data.frame(Est = assays(se)[["counts"]][,1]/sfEst[1], True = counts_matrix[,1]/sfTrue[1])
-dfGS <- data.frame(Est = assays(se)[["counts"]][,2]/sfEst[2], True = counts_matrix[,1]/sfTrue[2])
-dfPolee <- data.frame(Est = assays(se)[["counts"]][,3]/sfEst[3], True = counts_matrix[,1]/sfTrue[3])
+<!-- dfBoot <- data.frame(Est = assays(se)[["counts"]][,1]/sfEst[1], True = counts_matrix[,1]/sfTrue[1]) -->
+<!-- dfGS <- data.frame(Est = assays(se)[["counts"]][,2]/sfEst[2], True = counts_matrix[,1]/sfTrue[2]) -->
+<!-- dfPolee <- data.frame(Est = assays(se)[["counts"]][,3]/sfEst[3], True = counts_matrix[,1]/sfTrue[3]) -->
 
-cInds <- computeCoverage(counts_matrix[,1], se, indsList=cInds100, prop=F)
-covMissingInds <- vector(mode = "list", 100)
-for(i in seq_along(covMissingInds))
-{
-    covMissingInds[[i]] <- vector(mode = "list", length(cInds[[i]]))
-    covMissingInds[[i]] <- lapply(cInds[[i]], function(x) setdiff(cInds100[[i]], cInds100[[i]][x]))
-}
+<!-- cInds <- computeCoverage(counts_matrix[,1], se, indsList=cInds100, prop=F) -->
+<!-- covMissingInds <- vector(mode = "list", 100) -->
+<!-- for(i in seq_along(covMissingInds)) -->
+<!-- { -->
+<!--     covMissingInds[[i]] <- vector(mode = "list", length(cInds[[i]])) -->
+<!--     covMissingInds[[i]] <- lapply(cInds[[i]], function(x) setdiff(cInds100[[i]], cInds100[[i]][x])) -->
+<!-- } -->
 
-getInds <- function(indsList, ind)
-{
-    return(unlist(lapply(indsList, function(x) x[[ind]])))
-}
-infInd <- 1
-transInds <- 100
-sum(dfBoot[getInds(covMissingInds[transInds],infInd),"Est"] > dfBoot[getInds(covMissingInds[transInds],infInd),"True"])
-```
+<!-- getInds <- function(indsList, ind) -->
+<!-- { -->
+<!--     return(unlist(lapply(indsList, function(x) x[[ind]]))) -->
+<!-- } -->
+<!-- infInd <- 1 -->
+<!-- transInds <- 100 -->
+<!-- sum(dfBoot[getInds(covMissingInds[transInds],infInd),"Est"] > dfBoot[getInds(covMissingInds[transInds],infInd),"True"]) -->
+<!-- ``` -->

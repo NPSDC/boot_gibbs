@@ -50,12 +50,11 @@ computeConfInt <- function(se, perc = 95, sf = T, type = "DESeq2", log = F)
         if("type" %in% names(metadata(se)))
             metadata(se)[["type"]] <- NULL
         metadata(se)[["log"]] <- log
-        
+        sizeFac <- metadata(se)[["sf"]][[type]]
         if(sf)
         {
             if(! "sf" %in% names(metadata(se)))
                 stop("Size Factor needs to be computed")
-            sizeFac <- metadata(se)[["sf"]][[type]]
             
             metadata(se)[["type"]] <- type
             for(i in seq(dim(sizeFac)[2]))
@@ -63,7 +62,9 @@ computeConfInt <- function(se, perc = 95, sf = T, type = "DESeq2", log = F)
         }
         if(log)
             infReps <- log(infReps)
-        assays(se, withDimnames = F)[["mean"]] <- apply(infReps, 1:2, mean)    
+        
+        assays(se, withDimnames = F)[["mean"]] <- apply(infReps, 1:2, mean)
+        assays(se, withDimnames = F)[["median"]] <- apply(infReps, 1:2, median)
         assays(se, withDimnames = F)[["variance"]] <- apply(infReps, 1:2, var)
         
         se <- computeInfRV(se, meanVariance = T)
@@ -74,6 +75,15 @@ computeConfInt <- function(se, perc = 95, sf = T, type = "DESeq2", log = F)
         assays(se, withDimnames = F)[["LowC"]] <- apply(infReps, 1:2, function(x) quantile(x, probs = c(k)))
         assays(se, withDimnames = F)[["HighC"]] <- apply(infReps, 1:2, function(x) quantile(x, probs = c(1-k)))
         assays(se, withDimnames = F)[["Width"]] <- assays(se, withDimnames = F)[["HighC"]] - assays(se, withDimnames = F)[["LowC"]]
+        if("trueCounts" %in% names(metadata(se)))
+        {
+            sf <- metadata(se)[["sf"]][[type]][1,]
+            cM  <- metadata(se)[["trueCounts"]]
+            tC <- matrix(0, length(cM), length(sf))
+            for(i in seq_along(sf))
+                tC[,i] <- cM/sf[i]
+            assays(se, withDimnames = F)[["bias"]] <- tC - assays(se)[["median"]]
+        }
         return(se)
     }
     infLi <- se[["infReps"]]
@@ -406,4 +416,87 @@ plotBarplot <- function(dfList, indsList, title = F)
         p <- p + labs(title = paste("Total transcripts", lengths)) + theme(plot.title = element_text(hjust = 1))
     return(p)
     
+}
+
+createWidthDf <- function(se, counts_matrix)
+{
+    se <- computeConfInt(se,  sf = T)
+    
+    df <- data.frame(tCounts = counts_matrix[,1]/metadata(se)[["sf"]][["DESeq2"]][1,1], counts = assays(se)[["counts"]][,1]/metadata(se)[["sf"]][["DESeq2"]][2,1], widthB = assays(se)[["Width"]][,1], widthGS = assays(se)[["Width"]][,2], widthPolee = assays(se)[["Width"]][,3])
+    
+    df[["wiBProp"]] = df[["widthB"]]/(df[["counts"]]+1)
+    df[["wiGSProp"]] = df[["widthGS"]]/(df[["counts"]]+1)
+    df[["wiPoleeCount"]] = df[["widthPolee"]]/(df[["counts"]]+1)
+    
+    df[["BCov"]] <- ifelse(assays(se)[["LowC"]][,1] <= df$tCounts & df$tCounts <= assays(se)[["HighC"]][,1], T, F)
+    df[["GSCov"]] <- ifelse(assays(se)[["LowC"]][,2] <= df$tCounts & df$tCounts <= assays(se)[["HighC"]][,2], T, F)
+    df[["PoleeCov"]] <- ifelse(assays(se)[["LowC"]][,3] <= df$tCounts & df$tCounts <= assays(se)[["HighC"]][,3], T, F)
+    
+    df <- df[order(df$counts),] 
+}
+
+plotWidthDf <- function(df, widthCols = c(3:5), widthPropCols = c(6:8),  log = T)
+{
+    if(log)
+        df[,c(1:2, widthCols, widthPropCols)] <- log2(df[,c(1:2, widthCols, widthPropCols)] + 1)
+    
+    pWidth <- vector(mode="list", length(widthCols))
+    j=1
+    
+    for(i in widthCols)
+    {
+        pWidth[[j]] <- ggplot(df, aes_string(x=colnames(df)[i], y="counts")) +  
+            geom_hex() +
+            #geom_point() + 
+            geom_abline(intercept = 0, slope = 1) + 
+            xlab(paste("log2", colnames(df)[i])) + ylab(paste("log2", "counts"))
+        j = j + 1
+    }
+    pWidth <- ggarrange(plotlist = pWidth, ncol = 2, nrow = 2)
+    
+    pWidthProp <- list()
+    j=1
+    for(i in widthPropCols)
+    {
+        pWidthProp[[j]] <- ggplot(df, aes_string("counts", colnames(df)[i])) + 
+            geom_hex() +
+            #geom_point()  + 
+            geom_abline(intercept = 0, slope = -1) + 
+            xlab(paste("log2", colnames(df)[i])) + ylab(paste("log2", "counts"))
+        j=j+1
+    }
+    pWidthProp <- ggarrange(plotlist = pWidthProp, nrow =2, ncol=2)
+    
+    return(list(pWidth, pWidthProp))
+}
+
+plotSummary <- function(se, tCounts, type = "Scatter", col_inds = c(1,2), summQuant = "mean", nbreaks = 50, log=T)
+{
+    cInds <- extractBinInds(tCounts, breaks = nbreaks)
+    pList <- vector(mode = "list", length(cInds))
+    summDf <- data.frame(assays(se)[[summQuant]][,col_inds])
+    if(summQuant == "bias")
+        summDf <- abs(summDf)
+    for(i in seq_along(cInds))
+    {
+        inds = cInds[[i]]
+        if(!summQuant %in% assayNames(se))
+            stop(paste(summQuant, "does not exist"))
+        if(log)
+            df <- log2(summDf[inds,]+1)
+        if(type == "Scatter")
+        {
+            pList[[i]] <- ggplot(log2(df+1), aes_string(x=colnames(df)[1], y=colnames(df)[2])) + 
+            geom_point() + geom_smooth(method = "lm", color = "red") +
+            geom_abline(intercept = 0, slope = 1, color = "blue") + 
+            ggtitle(round(log2(as.numeric(names(cInds)[i])),2))
+        }
+        else
+        {
+            df <- reshape::melt(df)
+            pList[[i]] <- ggplot(df, aes(x=variable, y=value)) + geom_boxplot() +
+                ggtitle(round(log2(as.numeric(names(cInds)[i])),2))
+        }
+    }
+    return(pList)
 }
