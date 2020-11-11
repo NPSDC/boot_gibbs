@@ -39,13 +39,13 @@ def read_eqfile(base, exp, nEq = None):
     logging.info('eq file {}'.format(eq_file))
 
     G = nx.Graph()
-    eqClasses = {}
-    tnames = []
-    tnamemap = {}
-    single_nodes = set()
-    eqclasses_name = dict()
+    eqClasses = {} ##Contains the total reads in each equivalence class
+    tnames = [] ##Name of all transcripts
+    tnamemap = {} ##Mapping b/w number(index) and transcript, PS - index starting with 0
+    single_nodes = set() ##Transcript indexes that dont map with any transcript
+    eqclasses_name = dict() ##Mapping index with eqclass name
     rep = [] ## Equivalence class transcripts getting repeated
-    t_not = set()
+    t_not = set() ## Transcripts that won't be considered for clique theory
     
     with gzip.open(eq_file) as ifile:
         numTran = int(ifile.readline().decode('utf-8').rstrip())
