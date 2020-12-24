@@ -1,4 +1,6 @@
 library(SummarizedExperiment)
+library(ggplot2)
+library(ggpubr)
 getInf <- function(se)
 {
     library(SummarizedExperiment)
@@ -50,7 +52,7 @@ computeConfInt <- function(se, perc = 95, sf = T, type = "DESeq2", log = F)
         if("type" %in% names(metadata(se)))
             metadata(se)[["type"]] <- NULL
         metadata(se)[["log"]] <- log
-        sizeFac <- metadata(se)[["sf"]][[type]]
+        sizeFac <- NULL
         if(sf)
         {
             if(! "sf" %in% names(metadata(se)))
@@ -59,6 +61,7 @@ computeConfInt <- function(se, perc = 95, sf = T, type = "DESeq2", log = F)
             metadata(se)[["type"]] <- type
             for(i in seq(dim(sizeFac)[2]))
                 infReps[,i,] <- t(t(infReps[,i,])/sizeFac[3:dim(sizeFac)[1],i])
+            sizeFac <- metadata(se)[["sf"]][[type]]
         }
         if(log)
             infReps <- log(infReps)
@@ -470,9 +473,12 @@ plotWidthDf <- function(df, widthCols = c(3:5), widthPropCols = c(6:8),  log = T
     return(list(pWidth, pWidthProp))
 }
 
-plotSummary <- function(se, tCounts, type = "Scatter", col_inds = c(1,2), summQuant = "mean", nbreaks = 50, log=T)
+plotSummary <- function(se, tCounts = NULL, type = "Scatter", col_inds = c(1,2), summQuant = "mean", nbreaks = 50, log=T)
 {
-    cInds <- extractBinInds(tCounts, breaks = nbreaks)
+    if(!is.null(tCounts))
+        cInds <- extractBinInds(tCounts, breaks = nbreaks)
+    else
+        cInds <- extractBinInds(assays(se)[["counts"]][,1], breaks = nbreaks)
     pList <- vector(mode = "list", length(cInds))
     summDf <- data.frame(assays(se)[[summQuant]][,col_inds])
     if(summQuant == "bias")

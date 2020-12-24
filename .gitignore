@@ -2,3 +2,7 @@ R/run_rmd.sh
 R/create_rmd.R
 R/*.csv
 R/*.html
+index
+quant_output
+*/slurm*
+*/*.png
