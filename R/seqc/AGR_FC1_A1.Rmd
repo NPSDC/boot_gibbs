@@ -1,0 +1,78 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+```{r warning=F,message=F}
+library(tximeta)
+dir <- "../../../real_data/out/"
+source("../helper_func.R")
+
+files <- file.path(dir, c("AGR_FC1_A_1_B_100", "AGR_FC1_A_1_GS_100"), "quant.sf")
+coldata <- data.frame(files, names = c("sample_01_B_100", "sample_01_GS_100"), infType = c("Boot", "GS"), stringsAsFactors = F)
+se <- tximeta(coldata)
+se <- computeConfInt(se, sf = F)
+```
+
+### Boxplots
+#### Inferential Variance
+```{r warning=F, message=F, fig.dim=c(20,20)}
+pL <- plotSummary(se, summQuant="infRV", nbreaks = 12, type = "BP")
+ggarrange(plotlist = pL, nrow = 3, ncol = 4)
+```
+
+#### Mean
+```{r warning=F, message=F, fig.dim=c(20,20)}
+pL <- plotSummary(se, summQuant="mean", nbreaks = 12, type = "BP")
+ggarrange(plotlist = pL, nrow = 3, ncol = 4)
+```
+
+#### Variance
+```{r warning=F, message=F, fig.dim=c(20,20)}
+pL <- plotSummary(se, summQuant="variance", nbreaks = 12, type = "BP")
+ggarrange(plotlist = pL, nrow = 3, ncol = 4)
+```
+
+#### Width
+```{r warning=F, message=F, fig.dim=c(20,20)}
+pL <- plotSummary(se, summQuant="Width", nbreaks = 12, type = "BP")
+ggarrange(plotlist = pL, nrow = 3, ncol = 4)
+```
+
+### Scatter Plots
+#### Inferential Variance
+```{r warning=F, message=F, fig.dim=c(20,20)}
+pL <- plotSummary(se, summQuant="infRV", nbreaks = 12)
+png("AInf.png")
+ggarrange(plotlist = pL, nrow = 3, ncol = 4)
+dev.off()
+knitr::include_graphics("AInf.png")
+```
+
+#### Mean
+```{r warning=F, message=F, fig.dim=c(20,20)}
+pL <- plotSummary(se, summQuant="mean", nbreaks = 12)
+png("AMean.png")
+ggarrange(plotlist = pL, nrow = 3, ncol = 4)
+dev.off()
+knitr::include_graphics("AMean.png")
+```
+
+#### Variance
+```{r warning=F, message=F, fig.dim=c(20,20)}
+pL <- plotSummary(se, summQuant="variance", nbreaks = 12)
+png("AVar.png")
+ggarrange(plotlist = pL, nrow = 3, ncol = 4)
+dev.off()
+knitr::include_graphics("AVar.png")
+```
+
+#### Width
+```{r warning=F, message=F, fig.dim=c(20,20)}
+pL <- plotSummary(se, summQuant="Width", nbreaks = 12)
+png("AWid.png")
+ggarrange(plotlist = pL, nrow = 3, ncol = 4)
+dev.off()
+knitr::include_graphics("AWid.png")
+```

@@ -1,0 +1,262 @@
+AGR_FC1_A1.Rmd
+
+
+processing file: AGR_FC1_A1.Rmd
+  |                                                                              |                                                                      |   0%  |                                                                              |....                                                                  |   6%
+  ordinary text without R code
+
+  |                                                                              |........                                                              |  11%
+label: unnamed-chunk-1 (with options) 
+List of 2
+ $ warning: symbol F
+ $ message: symbol F
+
+Loading required package: GenomicRanges
+Loading required package: stats4
+Loading required package: BiocGenerics
+Loading required package: parallel
+
+Attaching package: 'BiocGenerics'
+
+The following objects are masked from 'package:parallel':
+
+    clusterApply, clusterApplyLB, clusterCall, clusterEvalQ,
+    clusterExport, clusterMap, parApply, parCapply, parLapply,
+    parLapplyLB, parRapply, parSapply, parSapplyLB
+
+The following objects are masked from 'package:stats':
+
+    IQR, mad, sd, var, xtabs
+
+The following objects are masked from 'package:base':
+
+    anyDuplicated, append, as.data.frame, basename, cbind, colnames,
+    dirname, do.call, duplicated, eval, evalq, Filter, Find, get, grep,
+    grepl, intersect, is.unsorted, lapply, Map, mapply, match, mget,
+    order, paste, pmax, pmax.int, pmin, pmin.int, Position, rank,
+    rbind, Reduce, rownames, sapply, setdiff, sort, table, tapply,
+    union, unique, unsplit, which, which.max, which.min
+
+Loading required package: S4Vectors
+
+Attaching package: 'S4Vectors'
+
+The following object is masked from 'package:base':
+
+    expand.grid
+
+Loading required package: IRanges
+Loading required package: GenomeInfoDb
+Loading required package: Biobase
+Welcome to Bioconductor
+
+    Vignettes contain introductory material; view with
+    'browseVignettes()'. To cite Bioconductor, see
+    'citation("Biobase")', and for packages 'citation("pkgname")'.
+
+Loading required package: DelayedArray
+Loading required package: matrixStats
+
+Attaching package: 'matrixStats'
+
+The following objects are masked from 'package:Biobase':
+
+    anyMissing, rowMedians
+
+
+Attaching package: 'DelayedArray'
+
+The following objects are masked from 'package:matrixStats':
+
+    colMaxs, colMins, colRanges, rowMaxs, rowMins, rowRanges
+
+The following objects are masked from 'package:base':
+
+    aperm, apply, rowsum
+
+importing quantifications
+reading in files with read_tsv
+1 2 
+couldn't find matching transcriptome, returning non-ranged SummarizedExperiment
+  |                                                                              |............                                                          |  17%
+  ordinary text without R code
+
+  |                                                                              |................                                                      |  22%
+label: unnamed-chunk-2 (with options) 
+List of 3
+ $ warning: symbol F
+ $ message: symbol F
+ $ fig.dim: language c(20, 20)
+
+Using  as id variables
+Using  as id variables
+Using  as id variables
+Using  as id variables
+Using  as id variables
+Using  as id variables
+Using  as id variables
+Using  as id variables
+Using  as id variables
+Using  as id variables
+Using  as id variables
+Using  as id variables
+  |                                                                              |...................                                                   |  28%
+  ordinary text without R code
+
+  |                                                                              |.......................                                               |  33%
+label: unnamed-chunk-3 (with options) 
+List of 3
+ $ warning: symbol F
+ $ message: symbol F
+ $ fig.dim: language c(20, 20)
+
+Using  as id variables
+Using  as id variables
+Using  as id variables
+Using  as id variables
+Using  as id variables
+Using  as id variables
+Using  as id variables
+Using  as id variables
+Using  as id variables
+Using  as id variables
+Using  as id variables
+Using  as id variables
+  |                                                                              |...........................                                           |  39%
+  ordinary text without R code
+
+  |                                                                              |...............................                                       |  44%
+label: unnamed-chunk-4 (with options) 
+List of 3
+ $ warning: symbol F
+ $ message: symbol F
+ $ fig.dim: language c(20, 20)
+
+Using  as id variables
+Using  as id variables
+Using  as id variables
+Using  as id variables
+Using  as id variables
+Using  as id variables
+Using  as id variables
+Using  as id variables
+Using  as id variables
+Using  as id variables
+Using  as id variables
+Using  as id variables
+  |                                                                              |...................................                                   |  50%
+  ordinary text without R code
+
+  |                                                                              |.......................................                               |  56%
+label: unnamed-chunk-5 (with options) 
+List of 3
+ $ warning: symbol F
+ $ message: symbol F
+ $ fig.dim: language c(20, 20)
+
+Using  as id variables
+Using  as id variables
+Using  as id variables
+Using  as id variables
+Using  as id variables
+Using  as id variables
+Using  as id variables
+Using  as id variables
+Using  as id variables
+Using  as id variables
+Using  as id variables
+Using  as id variables
+  |                                                                              |...........................................                           |  61%
+  ordinary text without R code
+
+  |                                                                              |...............................................                       |  67%
+label: unnamed-chunk-6 (with options) 
+List of 3
+ $ warning: symbol F
+ $ message: symbol F
+ $ fig.dim: language c(20, 20)
+
+`geom_smooth()` using formula 'y ~ x'
+`geom_smooth()` using formula 'y ~ x'
+`geom_smooth()` using formula 'y ~ x'
+`geom_smooth()` using formula 'y ~ x'
+`geom_smooth()` using formula 'y ~ x'
+`geom_smooth()` using formula 'y ~ x'
+`geom_smooth()` using formula 'y ~ x'
+`geom_smooth()` using formula 'y ~ x'
+`geom_smooth()` using formula 'y ~ x'
+`geom_smooth()` using formula 'y ~ x'
+`geom_smooth()` using formula 'y ~ x'
+`geom_smooth()` using formula 'y ~ x'
+  |                                                                              |...................................................                   |  72%
+  ordinary text without R code
+
+  |                                                                              |......................................................                |  78%
+label: unnamed-chunk-7 (with options) 
+List of 3
+ $ warning: symbol F
+ $ message: symbol F
+ $ fig.dim: language c(20, 20)
+
+`geom_smooth()` using formula 'y ~ x'
+`geom_smooth()` using formula 'y ~ x'
+`geom_smooth()` using formula 'y ~ x'
+`geom_smooth()` using formula 'y ~ x'
+`geom_smooth()` using formula 'y ~ x'
+`geom_smooth()` using formula 'y ~ x'
+`geom_smooth()` using formula 'y ~ x'
+`geom_smooth()` using formula 'y ~ x'
+`geom_smooth()` using formula 'y ~ x'
+`geom_smooth()` using formula 'y ~ x'
+`geom_smooth()` using formula 'y ~ x'
+`geom_smooth()` using formula 'y ~ x'
+  |                                                                              |..........................................................            |  83%
+  ordinary text without R code
+
+  |                                                                              |..............................................................        |  89%
+label: unnamed-chunk-8 (with options) 
+List of 3
+ $ warning: symbol F
+ $ message: symbol F
+ $ fig.dim: language c(20, 20)
+
+`geom_smooth()` using formula 'y ~ x'
+`geom_smooth()` using formula 'y ~ x'
+`geom_smooth()` using formula 'y ~ x'
+`geom_smooth()` using formula 'y ~ x'
+`geom_smooth()` using formula 'y ~ x'
+`geom_smooth()` using formula 'y ~ x'
+`geom_smooth()` using formula 'y ~ x'
+`geom_smooth()` using formula 'y ~ x'
+`geom_smooth()` using formula 'y ~ x'
+`geom_smooth()` using formula 'y ~ x'
+`geom_smooth()` using formula 'y ~ x'
+`geom_smooth()` using formula 'y ~ x'
+  |                                                                              |..................................................................    |  94%
+  ordinary text without R code
+
+  |                                                                              |......................................................................| 100%
+label: unnamed-chunk-9 (with options) 
+List of 3
+ $ warning: symbol F
+ $ message: symbol F
+ $ fig.dim: language c(20, 20)
+
+`geom_smooth()` using formula 'y ~ x'
+`geom_smooth()` using formula 'y ~ x'
+`geom_smooth()` using formula 'y ~ x'
+`geom_smooth()` using formula 'y ~ x'
+`geom_smooth()` using formula 'y ~ x'
+`geom_smooth()` using formula 'y ~ x'
+`geom_smooth()` using formula 'y ~ x'
+`geom_smooth()` using formula 'y ~ x'
+`geom_smooth()` using formula 'y ~ x'
+`geom_smooth()` using formula 'y ~ x'
+`geom_smooth()` using formula 'y ~ x'
+`geom_smooth()` using formula 'y ~ x'
+
+output file: AGR_FC1_A1.knit.md
+
+/opt/local/stow/pandoc-1.17.0.3/bin/pandoc +RTS -K512m -RTS AGR_FC1_A1.utf8.md --to latex --from markdown+autolink_bare_uris+tex_math_single_backslash --output AGR_FC1_A1.tex --self-contained --highlight-style tango --latex-engine pdflatex --variable graphics --variable 'geometry:margin=1in' 
+
+Output created: AGR_FC1_A1.pdf
