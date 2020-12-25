@@ -6,3 +6,9 @@ index
 quant_output
 */slurm*
 */*.png
+*.sql*
+*.rds*
+*.vscode
+R/environment/
+R/txiMeta_files
+
