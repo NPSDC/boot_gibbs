@@ -11,4 +11,5 @@ quant_output
 *.vscode
 R/environment/
 R/txiMeta_files
-
+R/*/*.png
+R/*/*.html

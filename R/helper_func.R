@@ -8,14 +8,23 @@ getInf <- function(se)
     infReps <- abind::abind(as.list(infReps), along=3)   
     return(infReps)
 }
-computeSizeFactors <- function(se, trueCounts)
+
+appTrueCounts <- function(se, trueCounts)
+{
+    if(length(trueCounts) != nrow(se))
+        stop("Number of transcripts in single cell experiment not same as the length of true counts")
+    metadata(se)[["trueCounts"]] <- trueCounts
+    return(se)
+}
+
+computeSizeFactors <- function(se)
 {
     if(!is(se, "SummarizedExperiment"))
         stop("Not a summarized experiment")
-    if(length(trueCounts) != nrow(se))
-        stop("rows dont match")
-
+    if(!"trueCounts" %in% names(metadata(se)))
+        stop("True counts not in metadata")
     
+    trueCounts <- metadata(se)[["trueCounts"]]
     infReps <- assays(se)[grep("infRep",assayNames(se))]
     infReps <- abind::abind(as.list(infReps), along=3)
     
@@ -34,6 +43,7 @@ computeSizeFactors <- function(se, trueCounts)
         
         sfs <- exp(median(log(trueCounts) - log(assays(se)[["counts"]][,i])))
         sfs <- c(sfs, apply(infReps[,i,], 2, function(x) exp(median(log(trueCounts) - log(x)))))
+        sizeFac[["medScale"]][2:nrow(sizeFac[[i]]),i] <- sfs
         sizeFac[["medScale"]]["True",i] <- mean(sfs)
         
         sizeFac[["depthScale"]][1,i] <- sum(trueCounts)/sum(assays(se)[["counts"]][,i])
@@ -59,9 +69,10 @@ computeConfInt <- function(se, perc = 95, sf = T, type = "DESeq2", log = F)
                 stop("Size Factor needs to be computed")
             
             metadata(se)[["type"]] <- type
+            sizeFac <- metadata(se)[["sf"]][[type]]            
             for(i in seq(dim(sizeFac)[2]))
                 infReps[,i,] <- t(t(infReps[,i,])/sizeFac[3:dim(sizeFac)[1],i])
-            sizeFac <- metadata(se)[["sf"]][[type]]
+            
         }
         if(log)
             infReps <- log(infReps)
@@ -182,23 +193,23 @@ computeCoverage <- function(counts, infRep, indsList, prop = T)
             return(covInds)
     }
     
-    if(prop)
-    {
-        rat <- sapply(indsList, function(inds)
-        {
-            sum(infRep[inds, "LowC"] <= counts[inds] & counts[inds] <= infRep[inds, "HighC"])/length(inds)
-        })    
-    }
-    else
-    {
-        rat <- sapply(indsList, function(inds)
-        {
-            ifelse(infRep[inds, "LowC"] <= counts[inds] & counts[inds] <= infRep[inds, "HighC"], 1, 0)
-        })
-    }
-    
-    names(rat) <- names(indsList)
-    return(rat)
+    # if(prop)
+    # {
+    #     rat <- sapply(indsList, function(inds)
+    #     {
+    #         sum(infRep[inds, "LowC"] <= counts[inds] & counts[inds] <= infRep[inds, "HighC"])/length(inds)
+    #     })    
+    # }
+    # else
+    # {
+    #     rat <- sapply(indsList, function(inds)
+    #     {
+    #         ifelse(infRep[inds, "LowC"] <= counts[inds] & counts[inds] <= infRep[inds, "HighC"], 1, 0)
+    #     })
+    # }
+    # 
+    # names(rat) <- names(indsList)
+    # return(rat)
 }
 
 createPlotDf <- function(matList, indsList = NULL, namesMat = NULL)
@@ -421,54 +432,73 @@ plotBarplot <- function(dfList, indsList, title = F)
     
 }
 
-createWidthDf <- function(se, counts_matrix)
+createWidthDf <- function(se, counts = NULL)
 {
-    se <- computeConfInt(se,  sf = T)
+    if(is.null(counts))
+    {
+        if(! "trueCounts" %in% names(metadata(se)))
+            stop("True counts not in the summ Experiment and also not provided by the user")
+        counts <- metadata(se)[["trueCounts"]]
+    }
+    sfT <- metadata(se)[["sf"]][["DESeq2"]][1,] #size factor for true counts with Boots being first followed by GS and/or Polee
+    df <- data.frame(widthB = assays(se)[["Width"]][,1], widthGS = assays(se)[["Width"]][,2])
+    df[["wiBProp"]] = df[["widthB"]]/(counts/sfT[1])
+    df[["wiGSProp"]] = df[["widthGS"]]/(counts/sfT[2])
+    df[["BCov"]] <- ifelse(assays(se)[["LowC"]][,1] <= counts/sfT[1] & counts/sfT[1] <= assays(se)[["HighC"]][,1], T, F)
+    df[["GSCov"]] <- ifelse(assays(se)[["LowC"]][,2] <= counts/sfT[2] & counts/sfT[2] <= assays(se)[["HighC"]][,2], T, F)
     
-    df <- data.frame(tCounts = counts_matrix[,1]/metadata(se)[["sf"]][["DESeq2"]][1,1], counts = assays(se)[["counts"]][,1]/metadata(se)[["sf"]][["DESeq2"]][2,1], widthB = assays(se)[["Width"]][,1], widthGS = assays(se)[["Width"]][,2], widthPolee = assays(se)[["Width"]][,3])
-    
-    df[["wiBProp"]] = df[["widthB"]]/(df[["counts"]]+1)
-    df[["wiGSProp"]] = df[["widthGS"]]/(df[["counts"]]+1)
-    df[["wiPoleeCount"]] = df[["widthPolee"]]/(df[["counts"]]+1)
-    
-    df[["BCov"]] <- ifelse(assays(se)[["LowC"]][,1] <= df$tCounts & df$tCounts <= assays(se)[["HighC"]][,1], T, F)
-    df[["GSCov"]] <- ifelse(assays(se)[["LowC"]][,2] <= df$tCounts & df$tCounts <= assays(se)[["HighC"]][,2], T, F)
-    df[["PoleeCov"]] <- ifelse(assays(se)[["LowC"]][,3] <= df$tCounts & df$tCounts <= assays(se)[["HighC"]][,3], T, F)
-    
-    df <- df[order(df$counts),] 
+    if(dim(se)[2] == 3)
+    {
+        df <- cbind(df, widthPolee = assays(se)[["Width"]][,3])
+        df[["wiPoleeCount"]] = df[["widthPolee"]]/(counts/sfT[3])
+        df[["PoleeCov"]] <- ifelse(assays(se)[["LowC"]][,3] <= (counts/sfT[3]) & (counts/sfT[3]) <= assays(se)[["HighC"]][,3], T, F)
+        df <- df[,c(1:2,7,3:4,8,5:6,9)]
+    }
+    df <- cbind(df, counts = counts)
+    df <- df[order(df[["counts"]]),]
+    return(df)
 }
 
-plotWidthDf <- function(df, widthCols = c(3:5), widthPropCols = c(6:8),  log = T)
+plotWidthDf <- function(df, widthCols = c(1:2), widthPropCols = c(3:4),  log = T, hex = T)
 {
     if(log)
-        df[,c(1:2, widthCols, widthPropCols)] <- log2(df[,c(1:2, widthCols, widthPropCols)] + 1)
+        df[,c(widthCols, widthPropCols, ncol(df))] <- log2(df[,c(widthCols, widthPropCols, ncol(df))] + 1)
     
     pWidth <- vector(mode="list", length(widthCols))
     j=1
     
     for(i in widthCols)
     {
-        pWidth[[j]] <- ggplot(df, aes_string(x=colnames(df)[i], y="counts")) +  
-            geom_hex() +
-            #geom_point() + 
-            geom_abline(intercept = 0, slope = 1) + 
+        pWidth[[j]] <- ggplot(df, aes_string(x=colnames(df)[i], y="counts"))
+        if(hex)
+            pWidth[[j]] <- pWidth[[j]] + geom_hex()
+        else
+            pWidth[[j]] <- pWidth[[j]] + geom_point()
+        pWidth[[j]] <- pWidth[[j]] + geom_smooth(method = "lm") + 
             xlab(paste("log2", colnames(df)[i])) + ylab(paste("log2", "counts"))
         j = j + 1
     }
-    pWidth <- ggarrange(plotlist = pWidth, ncol = 2, nrow = 2)
+    ncol=2
+    nrow=1
+    if(length(widthCols) > 2)
+        nrow=2
+    pWidth <- ggarrange(plotlist = pWidth, ncol = ncol, nrow = nrow)
     
     pWidthProp <- list()
     j=1
     for(i in widthPropCols)
     {
-        pWidthProp[[j]] <- ggplot(df, aes_string("counts", colnames(df)[i])) + 
-            geom_hex() +
-            #geom_point()  + 
-            geom_abline(intercept = 0, slope = -1) + 
+        pWidthProp[[j]] <- ggplot(df, aes_string("counts", colnames(df)[i]))
+        if(hex)
+            pWidthProp[[j]] <- pWidthProp[[j]]  + geom_hex()
+        else
+            pWidthProp[[j]] <- pWidthProp[[j]]  + geom_point()
+            
+        pWidthProp[[j]] <- pWidthProp[[j]] + geom_smooth(method = "lm") + 
             xlab(paste("log2", colnames(df)[i])) + ylab(paste("log2", "counts"))
         j=j+1
     }
-    pWidthProp <- ggarrange(plotlist = pWidthProp, nrow =2, ncol=2)
+    pWidthProp <- ggarrange(plotlist = pWidthProp, nrow =nrow, ncol=ncol)
     
     return(list(pWidth, pWidthProp))
 }
