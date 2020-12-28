@@ -459,7 +459,7 @@ createWidthDf <- function(se, counts = NULL)
     return(df)
 }
 
-plotWidthDf <- function(df, widthCols = c(1:2), widthPropCols = c(3:4),  log = T, hex = T)
+plotWidthDf <- function(df, widthCols = c(1:2), widthPropCols = c(3:4), log = T, hex = T)
 {
     if(log)
         df[,c(widthCols, widthPropCols, ncol(df))] <- log2(df[,c(widthCols, widthPropCols, ncol(df))] + 1)
@@ -469,7 +469,7 @@ plotWidthDf <- function(df, widthCols = c(1:2), widthPropCols = c(3:4),  log = T
     
     for(i in widthCols)
     {
-        pWidth[[j]] <- ggplot(df, aes_string(x=colnames(df)[i], y="counts"))
+        pWidth[[j]] <- ggplot(df, aes_string(x="counts", y =colnames(df)[i]))
         if(hex)
             pWidth[[j]] <- pWidth[[j]] + geom_hex()
         else
@@ -488,14 +488,14 @@ plotWidthDf <- function(df, widthCols = c(1:2), widthPropCols = c(3:4),  log = T
     j=1
     for(i in widthPropCols)
     {
-        pWidthProp[[j]] <- ggplot(df, aes_string("counts", colnames(df)[i]))
+        pWidthProp[[j]] <- ggplot(df, aes_string(x = "counts", y = colnames(df)[i]))
         if(hex)
             pWidthProp[[j]] <- pWidthProp[[j]]  + geom_hex()
         else
             pWidthProp[[j]] <- pWidthProp[[j]]  + geom_point()
             
         pWidthProp[[j]] <- pWidthProp[[j]] + geom_smooth(method = "lm") + 
-            xlab(paste("log2", colnames(df)[i])) + ylab(paste("log2", "counts"))
+            ylab(paste("log2", colnames(df)[i])) + xlab(paste("log2", "counts"))
         j=j+1
     }
     pWidthProp <- ggarrange(plotlist = pWidthProp, nrow =nrow, ncol=ncol)
