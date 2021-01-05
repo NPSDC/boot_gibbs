@@ -13,8 +13,56 @@ appTrueCounts <- function(se, trueCounts)
 {
     if(length(trueCounts) != nrow(se))
         stop("Number of transcripts in single cell experiment not same as the length of true counts")
-    metadata(se)[["trueCounts"]] <- trueCounts
+    if(is.null(names(trueCounts)))
+        stop("True Counts vector is unnamed")
+    
+    metadata(se)[["trueCounts"]] <- trueCounts[rownames(se)]
     return(se)
+}
+
+##Scaled true counts
+computeScaledTrueCounts <- function(se, tCounts = NULL, sf = T, type = "DESeq2", log = F)
+{
+    if(is.null(tCounts))
+    {
+        if(!"trueCounts" %in% names(metadata(se)))
+            stop("True counts not in se")
+        scaledTrueCounts <- matrix(rep(metadata(se)[["trueCounts"]], ncol(se)), ncol = ncol(se))    
+    }
+    else
+        scaledTrueCounts <- matrix(rep(tCounts, ncol(se)), ncol = ncol(se))    
+    if(sf)
+    {
+        if(!"sf" %in% names(metadata(se)))
+            stop("Size Factor needs to be computed")
+        metadata(se)[["type"]] <- type
+        sizeFac <- metadata(se)[["sf"]][[type]]
+        for(i in seq(ncol(scaledTrueCounts)))
+            scaledTrueCounts[,i] <- scaledTrueCounts[,i]/sizeFac[1,i]
+    }
+    if(log)
+        scaledTrueCounts <- log(scaledTrueCounts)
+    return(scaledTrueCounts)
+}
+
+##Scaled Inferential Replicated
+computeScaledInfReplicates <- function(se, sf = T, type = "DESeq2", log = F)
+{
+    infReps <- assays(se)[grep("infRep",assayNames(se))]
+    infReps <- abind::abind(as.list(infReps), along=3)
+    if(sf)
+    {
+        if(! "sf" %in% names(metadata(se)))
+            stop("Size Factor needs to be computed")
+        
+        metadata(se)[["type"]] <- type
+        sizeFac <- metadata(se)[["sf"]][[type]]
+        for(i in seq(dim(sizeFac)[2]))
+            infReps[,i,] <- t(t(infReps[,i,])/sizeFac[3:dim(sizeFac)[1],i])
+    }
+    if(log)
+        infReps <- log2(infReps)
+    return(infReps)
 }
 
 computeSizeFactors <- function(se)
@@ -133,6 +181,90 @@ countReads <- function(df)
             countDf[[ens]] = 1
     }
     return(data.frame(countDf))
+}
+
+computeRatio <- function(counts, type = "P", pseudoCount = 1) ##No checking of the rows, assuming there are checked before
+    #type stands for paternal or maternal
+{
+    if(!type %in% c("P", "M"))
+        stop("Only P or M needed")
+    
+    if(is.null(rownames(counts)) & is.null(names(counts)))
+        stop("names not provided for txps")
+    
+    if(!is.null(rownames(counts)))
+    {
+        tx <- rownames(counts)[1]
+        midInds <- nrow(counts)/2
+        ratio <- matrix(0, nrow = nrow(counts)/2, ncol = ncol(counts))
+    }
+    else
+    {
+        tx <- names(counts)[1]
+        midInds <- length(counts)/2
+        ratio <- rep(0, length(counts))
+    }
+    
+    txType <- unlist(strsplit(unlist(strsplit(tx, split = "|", fixed = T))[1], "_", fixed=T))[2]
+    
+    
+    reqInds <- c(1:midInds)
+    remInds <- c(midInds+1:midInds)
+    
+    if(txType != type)
+    {
+        reqInds <- remInds
+        remInds <- c(1:midInds)
+    }
+        
+    
+    if(length(dim(counts)) > 1)
+    {
+        for(i in seq(ncol(counts)))
+            ratio[,i] <- (counts[reqInds,i] + pseudoCount)/(counts[reqInds,i] + counts[remInds,i] + 2*pseudoCount)
+    }
+    else
+        ratio <- (counts[reqInds] + pseudoCount)/(counts[reqInds] + counts[remInds] + 2*pseudoCount)
+    return(ratio)
+        
+}
+
+computeAlleleConfInt <- function(se, pseudoCount = 1, sf = T, perc = 95, type = "DESeq2", ratioType = "P", log = F)
+{
+    if(!is(se, "SummarizedExperiment"))
+        stop("Summarized Experiment not passed as input")
+    ### Checking if the rownames are in the order assumed
+    rnames <- rownames(se)
+    midInd <- nrow(se)/2
+    rnamesM <- sapply(strsplit(rownames(se)[1:midInd], "_", fixed = T), function(x) x[1]) ##1:nrow/2
+    rnamesP <- sapply(strsplit(rownames(se)[midInd+1:midInd], "_", fixed = T), function(x) x[1]) ##nrow/2+1:nrow
+    if(sum(rnamesM != rnamesP) != 0)
+        stop("Maternal and Paternal not following the same order")
+    
+    infReps <- computeScaledInfReplicates(se, sf = sf, type = type, log = log)
+    
+    tnames <- rnamesM
+    counts <- assays(se)[["counts"]][1:midInd,]
+    rownames(counts) <- tnames
+    for(i in seq(ncol(counts)))
+        counts[,i] <- assays(se)[["counts"]][1:midInd,i] + assays(se)[["counts"]][midInd+1:midInd]
+        
+    trSe <- SummarizedExperiment(assays = list("counts" = counts), colData = colData(se))
+    
+    for(i in seq(dim(infReps)[3]))
+        assays(trSe, withDimnames = F)[[paste("infRep", i, sep = "")]] <- computeRatio(infReps[,,i])
+    
+    infReps <- assays(trSe)[grep("infRep",assayNames(trSe))]
+    infReps <- abind::abind(as.list(infReps), along=3)
+    
+    if(log)
+        infReps <- log(infReps)
+    
+    k = (100-perc)/200
+    assays(trSe, withDimnames = F)[["LowC"]] <- apply(infReps, 1:2, function(x) quantile(x, probs = c(k)))
+    assays(trSe, withDimnames = F)[["HighC"]] <- apply(infReps, 1:2, function(x) quantile(x, probs = c(1-k)))
+    assays(trSe, withDimnames = F)[["Width"]] <- assays(trSe, withDimnames = F)[["HighC"]] - assays(trSe, withDimnames = F)[["LowC"]]
+    return(trSe)
 }
 
 computeCoverage <- function(counts, infRep, indsList, prop = T)

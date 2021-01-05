@@ -20,7 +20,8 @@ fi
 ###Creating index
 #salmon index -t $TRANS_FASTA -i $IND -k 31 --keepDuplicates -p 10
 
-for f in {sim_1e6,sim_5e6}
+#for f in {sim_1e6,sim_5e6}
+for f in {sim_1e7,sim_5e7}
 do
     COMB=${SAMP_DIR}/$f
     DIR=${OUT_DIR}/$f
