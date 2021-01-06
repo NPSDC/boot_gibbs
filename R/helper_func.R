@@ -1,6 +1,7 @@
 library(SummarizedExperiment)
 library(ggplot2)
 library(ggpubr)
+
 getInf <- function(se)
 {
     library(SummarizedExperiment)
@@ -27,10 +28,19 @@ computeScaledTrueCounts <- function(se, tCounts = NULL, sf = T, type = "DESeq2",
     {
         if(!"trueCounts" %in% names(metadata(se)))
             stop("True counts not in se")
-        scaledTrueCounts <- matrix(rep(metadata(se)[["trueCounts"]], ncol(se)), ncol = ncol(se))    
+        scaledTrueCounts <- matrix(rep(metadata(se)[["trueCounts"]], ncol(se)), ncol = ncol(se), 
+            dimnames= list(list(rownames(se)), list(colnames(se))))
     }
     else
-        scaledTrueCounts <- matrix(rep(tCounts, ncol(se)), ncol = ncol(se))    
+    {
+        if(is.null(names(tCounts)))
+            stop("tCounts cannot have null names")
+        tCounts <- tCounts[rownames(se)]
+        scaledTrueCounts <- matrix(rep(tCounts, ncol(se)), ncol = ncol(se), 
+            dimnames= list(rownames(se), colnames(se)))
+
+    }
+        
     if(sf)
     {
         if(!"sf" %in% names(metadata(se)))
@@ -250,7 +260,8 @@ computeAlleleConfInt <- function(se, pseudoCount = 1, sf = T, perc = 95, type = 
         counts[,i] <- assays(se)[["counts"]][1:midInd,i] + assays(se)[["counts"]][midInd+1:midInd]
         
     trSe <- SummarizedExperiment(assays = list("counts" = counts), colData = colData(se))
-    
+    metadata(trSe)[["log"]] = log
+    metadata(trSe)[["type"]] = type
     for(i in seq(dim(infReps)[3]))
         assays(trSe, withDimnames = F)[[paste("infRep", i, sep = "")]] <- computeRatio(infReps[,,i])
     
@@ -267,56 +278,72 @@ computeAlleleConfInt <- function(se, pseudoCount = 1, sf = T, perc = 95, type = 
     return(trSe)
 }
 
-computeCoverage <- function(counts, infRep, indsList, prop = T)
+computeCoverage <- function(counts, se, indsList, trSe = NULL, allele = F, prop = T, pseudoCount = 1, ratioType = "P")
 {
     if(class(indsList) != "list")
         stop("Indexes should be list")
-    if(nrow(infRep) != length(counts))
+    if(nrow(se) != length(counts))
     {
-        print(paste(nrow(infRep), length(counts)))
+        print(paste(nrow(se), length(counts)))
         stop("rows are not same as length")
     }
     
-    if(is(infRep, "SummarizedExperiment"))
+    if(is(se, "SummarizedExperiment"))
     {
-        if(!"LowC" %in% assayNames(infRep))
-            stop("LowC not in assayNames")
-        highC <- assays(infRep)[["HighC"]]
-        lowC <- assays(infRep)[["LowC"]]
-        sf <- rep(1, ncol(infRep)) ##Sizefactor for true counts
-        if("type" %in% names(metadata(infRep)))
+        sf <- rep(1, ncol(se)) ##Sizefactor for true counts
+        type <- NULL
+        log <- F
+        if("type" %in% names(metadata(se)))
         {
-            type <- metadata(infRep)[["type"]]
-            sf <- metadata(infRep)[["sf"]][[type]][1,]
+            type <- metadata(se)[["type"]]
+            sf <- metadata(se)[["sf"]][[type]][1,]
+            log <- metadata(se)[["log"]]
         }
-        
+        sfFlag = ifelse(is.null(type), F, T)
+        scTVals <- computeScaledTrueCounts(se, tCounts = counts, sf = sfFlag, type = type, log = log)
+        #print(head(scTVals))
+        if(allele)
+        {
+            scTVals <- computeRatio(scTVals, type = ratioType, pseudoCount = pseudoCount)
+            
+            if(is.null(trSe))
+                trSe <- computeAlleleConfInt(se, pseudoCount = pseudoCount, sf = sfFlag, type = type, log = log, ratioType = ratioType)
+            
+            highC <- assays(trSe)[["HighC"]]
+            lowC <- assays(trSe)[["LowC"]]
+        }
+        else
+        {
+            if(!"LowC" %in% assayNames(se))
+                stop("LowC not in assayNames")
+            highC <- assays(se)[["HighC"]]
+            lowC <- assays(se)[["LowC"]]
+        }
         df <- matrix(0,1,1)
         covInds <- list()
         if(prop)
-            df <- matrix(0, ncol = ncol(infRep), nrow = length(indsList), dimnames = list(seq(length(indsList)), colnames(infRep)))
+            df <- matrix(0, ncol = ncol(se), nrow = length(indsList), dimnames = list(seq(length(indsList)), colnames(se)))
         else
         {
             covInds <- vector(mode = "list", length(indsList))
             names(covInds) <- names(indsList)
             for(i in seq_along(covInds))
             {
-                covInds[[i]] <- vector(mode = "list", length = ncol(infRep))
-                names(covInds[[i]]) <- colnames(infRep)
+                covInds[[i]] <- vector(mode = "list", length = ncol(se))
+                names(covInds[[i]]) <- colnames(se)
             }    
         }
         
         for(i in seq_along(indsList))
         {
             inds = indsList[[i]]
-            for(j in seq(ncol(infRep)))
+            for(j in seq(ncol(se)))
             {
-                reqCounts <- counts[inds]/sf[j]
-                if(metadata(infRep)[["log"]])
-                    reqCounts <- log(reqCounts)
+    
                 if(prop)
-                    df[i,j] <- sum(lowC[inds, j] <= reqCounts & reqCounts <= highC[inds, j])/length(inds)
+                    df[i,j] <- sum(lowC[inds, j] <= scTVals[inds,j] & scTVals[inds,j] <= highC[inds, j])/length(inds)
                 else
-                    covInds[[i]][[j]] <- which(lowC[inds, j] <= reqCounts & reqCounts <= highC[inds, j])
+                    covInds[[i]][[j]] <- which(lowC[inds, j] <= scTVals[inds,j] & scTVals[inds,j] <= highC[inds, j])
             }
         }
         if(prop)
