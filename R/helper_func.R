@@ -212,7 +212,7 @@ computeRatio <- function(counts, type = "P", pseudoCount = 1) ##No checking of t
     {
         tx <- names(counts)[1]
         midInds <- length(counts)/2
-        ratio <- rep(0, length(counts))
+        ratio <- rep(0, length(counts)/2)
     }
     
     txType <- unlist(strsplit(unlist(strsplit(tx, split = "|", fixed = T))[1], "_", fixed=T))[2]
@@ -487,11 +487,15 @@ extractBinInds <- function(counts, breaks = 100)
     return(inds)
 }
 
-plotCovDf <- function(covDf, line = F)
+plotCovDf <- function(covDf, line = F, ratio = F)
 {
     library(ggplot2)
-    p <- ggplot(covDf, aes(x = log2Counts, y = Coverage, color = Type, shape = Type)) + 
-        geom_point() +  scale_x_continuous()
+    if(ratio)
+        p <- ggplot(covDf, aes(x = Ratio, y = Coverage, color = Type, shape = Type)) + 
+            geom_point() +  scale_x_continuous()
+    else
+        p <- ggplot(covDf, aes(x = log2Counts, y = Coverage, color = Type, shape = Type)) + 
+            geom_point() +  scale_x_continuous()
     if(line)
         p <- p + geom_line()
     p <- p + theme_grey(base_size = 12) + theme(legend.position = "bottom") 
@@ -540,13 +544,13 @@ plotCounts <- function(se, trueCounts, log = T, inds = 1)
     return(p)    
 }
 
-createCovDf <- function(confList, counts, cInds, cols = NULL, logC = T)
+createCovDf <- function(confList, counts, cInds, cols = NULL, logC = T, allele = F, trSe = NULL, ratio = F)
 {
     library(reshape)
     if(is(confList, "SummarizedExperiment"))
     {
         
-        df <- computeCoverage(counts, confList, cInds)
+        df <- computeCoverage(counts, confList, cInds, allele = allele, trSe = trSe)
         if(!is.null(cols))
         {
             if(length(cols) != ncol(df))
@@ -559,6 +563,8 @@ createCovDf <- function(confList, counts, cInds, cols = NULL, logC = T)
         dfMelt <- melt(df)
         dfMelt <- cbind(dfMelt, rep(counts, ncol(df)))
         colnames(dfMelt) <- c("inds", "Type", "Coverage", "log2Counts")
+        if(ratio)
+            colnames(dfMelt)[4] <- "Ratio"
         return(dfMelt)
         
     }
