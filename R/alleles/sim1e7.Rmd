@@ -21,7 +21,7 @@ seSamp1 <- tximeta(coldata[c(1:2),])
 seSamp2 <- tximeta(coldata[c(3:4),])
 
 seSamp1 <- appTrueCounts(seSamp1, counts_matrix[,1])
-seSamp2 <- appTrueCounts(seSamp1, counts_matrix[,2])
+seSamp2 <- appTrueCounts(seSamp2, counts_matrix[,2])
 ```
 
 #### Computing size factors and confidence intervals
